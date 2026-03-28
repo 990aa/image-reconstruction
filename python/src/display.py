@@ -96,6 +96,10 @@ def run_live_display(
     random_seed: int | None = None,
     target_pyramid: list[np.ndarray] | None = None,
     structure_map: np.ndarray | None = None,
+    gradient_angle_map: np.ndarray | None = None,
+    segmentation_map: np.ndarray | None = None,
+    cluster_centroids_lab: np.ndarray | None = None,
+    cluster_variances_lab: np.ndarray | None = None,
     size_schedule: dict[str, float] | None = None,
     max_polygons: int | None = None,
 ) -> HillClimbingOptimizer:
@@ -105,6 +109,10 @@ def run_live_display(
         random_seed=random_seed,
         target_pyramid=target_pyramid,
         structure_map=structure_map,
+        gradient_angle_map=gradient_angle_map,
+        segmentation_map=segmentation_map,
+        cluster_centroids_lab=cluster_centroids_lab,
+        cluster_variances_lab=cluster_variances_lab,
         size_schedule=size_schedule,
         max_polygons=max_polygons,
     )
