@@ -496,6 +496,18 @@ def progressive_growth(
                 start_softness=start_softness,
                 end_softness=end_softness,
             )
+            add_eval_softness = (
+                float(max(end_softness, current_softness * 0.85))
+                if use_high_frequency_targeting
+                else current_softness
+            )
+            alpha_for_add = float(
+                np.clip(
+                    new_polygon_alpha * (0.55 if use_high_frequency_targeting else 1.0),
+                    0.0,
+                    1.0,
+                )
+            )
 
             base_loss = float(optimizer.loss_history[-1])
             base_hf_error: float | None = None
@@ -527,6 +539,7 @@ def progressive_growth(
             ] | None = None
 
             accepted = False
+            polygon_added = False
             target_center_used = (0.0, 0.0)
             for _attempt in range(max(1, max_add_attempts)):
                 target_center, region_box, patch_color = highest_error_region_center(
@@ -580,12 +593,12 @@ def progressive_growth(
                         float(np.clip(patch_color[1], 0.0, 1.0)),
                         float(np.clip(patch_color[2], 0.0, 1.0)),
                     ),
-                    alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
+                    alpha=alpha_for_add,
                     shape_type=selected_shape,
                     rotation=rotation,
                     shape_params=params,
                 )
-                new_loss = _refresh_optimizer_canvas(optimizer, softness=current_softness)
+                new_loss = _refresh_optimizer_canvas(optimizer, softness=add_eval_softness)
                 new_hf_error: float | None = None
                 if use_high_frequency_targeting:
                     new_hf_error = float(
@@ -635,16 +648,25 @@ def progressive_growth(
 
                 if accepted_now:
                     accepted = True
+                    polygon_added = True
                     target_center_used = target_center
                     break
 
-                optimizer.remove_last_polygon(softness=current_softness, record_loss=False)
+                optimizer.remove_last_polygon(softness=add_eval_softness, record_loss=False)
 
                 x0, y0, x1, y1 = region_box
                 attempt_map[y0:y1, x0:x1] = 0.0
 
             if not accepted and best_candidate is not None:
-                placed_xy, best_color, sx, sy, selected_shape, rotation, params, _, _, _ = best_candidate
+                placed_xy, best_color, sx, sy, selected_shape, rotation, params, _, _, best_hf_error = best_candidate
+                if (
+                    use_high_frequency_targeting
+                    and base_hf_error is not None
+                    and best_hf_error is not None
+                    and best_hf_error >= (base_hf_error - 1e-6)
+                ):
+                    continue
+
                 px = int(np.clip(round(placed_xy[0]), 0, optimizer.rasterizer.width - 1))
                 py = int(np.clip(round(placed_xy[1]), 0, optimizer.rasterizer.height - 1))
                 neutral_color = tuple(float(v) for v in optimizer.current_canvas[py, px])
@@ -655,29 +677,33 @@ def progressive_growth(
                     size_x=sx,
                     size_y=sy,
                     color=neutral_color,
-                    alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
+                    alpha=alpha_for_add,
                     shape_type=selected_shape,
                     rotation=rotation,
                     shape_params=params,
                 )
-                neutral_loss = _refresh_optimizer_canvas(optimizer, softness=current_softness)
+                neutral_loss = _refresh_optimizer_canvas(optimizer, softness=add_eval_softness)
 
                 if neutral_loss > base_loss:
-                    optimizer.remove_last_polygon(softness=current_softness, record_loss=False)
+                    optimizer.remove_last_polygon(softness=add_eval_softness, record_loss=False)
                     optimizer.add_polygon(
                         center_x=placed_xy[0],
                         center_y=placed_xy[1],
                         size_x=sx,
                         size_y=sy,
                         color=best_color,
-                        alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
+                        alpha=alpha_for_add,
                         shape_type=selected_shape,
                         rotation=rotation,
                         shape_params=params,
                     )
-                    _refresh_optimizer_canvas(optimizer, softness=current_softness)
+                    _refresh_optimizer_canvas(optimizer, softness=add_eval_softness)
 
                 target_center_used = placed_xy
+                polygon_added = True
+
+            if not polygon_added:
+                continue
 
             if optimizer.loss_history[-1] < best_cycle_loss:
                 best_cycle_loss = float(optimizer.loss_history[-1])

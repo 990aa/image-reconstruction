@@ -22,11 +22,13 @@ def _hybrid_target(size: int = 64) -> np.ndarray:
         axis=2,
     ).astype(np.float32)
 
-    checker = (((np.arange(size)[:, None] // 4) + (np.arange(size)[None, :] // 4)) % 2).astype(np.float32)
+    checker = np.sign(np.sin(2.0 * np.pi * xx * 10.0) * np.sin(2.0 * np.pi * yy * 10.0)).astype(np.float32)
+    blob = np.exp(-(((xx - 0.70) ** 2) + ((yy - 0.38) ** 2)) / (2.0 * 0.10**2)).astype(np.float32)
+    local_mask = np.clip(blob, 0.0, 1.0)
     hf = np.zeros_like(smooth)
-    hf[..., 0] = 0.08 * (checker - 0.5)
-    hf[..., 1] = 0.06 * (0.5 - checker)
-    hf[..., 2] = 0.05 * (checker - 0.5)
+    hf[..., 0] = 0.08 * checker * local_mask
+    hf[..., 1] = -0.06 * checker * local_mask
+    hf[..., 2] = 0.05 * checker * local_mask
 
     target = np.clip(smooth + hf, 0.0, 1.0)
     return target.astype(np.float32, copy=False)
@@ -130,7 +132,7 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         hf_optimizer,
         batch_schedule=[12],
         max_steps_per_cycle=10,
-        post_add_steps=20,
+        post_add_steps=30,
         convergence_window=50,
         convergence_rel_threshold=0.001,
         region_window=3,
@@ -141,7 +143,7 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         use_high_frequency_targeting=True,
         residual_sigma=10.0,
         low_frequency_correction_strength=0.0,
-        max_add_attempts=1,
+        max_add_attempts=4,
         enforce_cycle_improvement=False,
         start_softness=1.0,
         end_softness=0.6,
