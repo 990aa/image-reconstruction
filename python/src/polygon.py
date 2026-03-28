@@ -83,6 +83,7 @@ def generate_shape(
     probability_map: np.ndarray,
     target_image: np.ndarray,
     size_px: float,
+    center_xy: tuple[int, int] | None = None,
     rng: np.random.Generator | None = None,
 ) -> Polygon:
     """Generate a triangle, quadrilateral, or ellipse from the guided distribution."""
@@ -91,7 +92,10 @@ def generate_shape(
 
     h, w, _ = target_image.shape
     size = max(1.0, float(size_px))
-    center_x, center_y = sample_center(probability_map, rng)
+    if center_xy is None:
+        center_x, center_y = sample_center(probability_map, rng)
+    else:
+        center_x, center_y = center_xy
     alpha = float(rng.uniform(0.25, 0.65))
 
     if shape_type in (ShapeType.TRIANGLE, ShapeType.QUADRILATERAL):
