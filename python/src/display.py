@@ -241,7 +241,7 @@ def run_live_display(
     )
 
     lines = [primary_line, best_line, acc_line]
-    labels = [line.get_label() for line in lines]
+    labels: list[str] = [str(line.get_label()) for line in lines]
     ax_mse.legend(lines, labels, loc="upper right")
 
     transition_a, transition_b = phase_transition_iterations(max_iterations)
