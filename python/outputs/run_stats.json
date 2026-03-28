@@ -1,0 +1,35 @@
+{
+  "best_run": {
+    "target": "heart",
+    "total_iterations": 5000,
+    "accepted_polygons": 925,
+    "final_mse": 0.003434749785810709,
+    "runtime_seconds": 8.859609100036323
+  },
+  "all_runs": [
+    {
+      "target": "heart",
+      "iterations": 5000,
+      "accepted_polygons": 925,
+      "initial_mse": 0.1140252947807312,
+      "final_mse": 0.003434749785810709,
+      "runtime_seconds": 8.859609100036323
+    },
+    {
+      "target": "logo",
+      "iterations": 5000,
+      "accepted_polygons": 890,
+      "initial_mse": 0.0631401389837265,
+      "final_mse": 0.005454989615827799,
+      "runtime_seconds": 9.158178300014697
+    },
+    {
+      "target": "face",
+      "iterations": 5000,
+      "accepted_polygons": 1098,
+      "initial_mse": 0.13583122193813324,
+      "final_mse": 0.005865263752639294,
+      "runtime_seconds": 9.128702300018631
+    }
+  ]
+}

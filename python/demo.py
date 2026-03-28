@@ -12,7 +12,11 @@ import numpy as np
 from PIL import Image
 
 from src.image_loader import load_target_image
-from src.optimizer import HillClimbingOptimizer, get_phase_name, phase_transition_iterations
+from src.optimizer import (
+    HillClimbingOptimizer,
+    get_phase_name,
+    phase_transition_iterations,
+)
 
 
 TARGET_ORDER = ["heart", "logo", "face"]
@@ -46,7 +50,9 @@ def save_canvas_jpeg(canvas: np.ndarray, output_path: Path, quality: int = 95) -
     )
 
 
-def rolling_mean(values: list[float], window: int = 50) -> tuple[np.ndarray, np.ndarray]:
+def rolling_mean(
+    values: list[float], window: int = 50
+) -> tuple[np.ndarray, np.ndarray]:
     arr = np.asarray(values, dtype=np.float64)
     if arr.size == 0:
         return np.array([], dtype=np.float64), np.array([], dtype=np.float64)
@@ -135,13 +141,28 @@ def make_live_panel_snapshot(
 
     x_raw = np.arange(len(mse_history))
     y_raw = np.asarray(mse_history, dtype=np.float64)
-    ax_mse.plot(x_raw, y_raw, color="tab:blue", alpha=0.25, linewidth=1.5, label="Raw MSE")
+    ax_mse.plot(
+        x_raw, y_raw, color="tab:blue", alpha=0.25, linewidth=1.5, label="Raw MSE"
+    )
 
     x_smooth, y_smooth = rolling_mean(mse_history, window=50)
-    ax_mse.plot(x_smooth, y_smooth, color="tab:blue", linewidth=2.5, label="Smoothed (window=50)")
+    ax_mse.plot(
+        x_smooth,
+        y_smooth,
+        color="tab:blue",
+        linewidth=2.5,
+        label="Smoothed (window=50)",
+    )
 
     if y_raw.size:
-        ax_mse.plot([x_raw[-1]], [y_raw[-1]], marker="o", color="tab:red", markersize=6, label="Current")
+        ax_mse.plot(
+            [x_raw[-1]],
+            [y_raw[-1]],
+            marker="o",
+            color="tab:red",
+            markersize=6,
+            label="Current",
+        )
 
     transition_a, transition_b = phase_transition_iterations(max_iterations)
     ax_mse.axvline(transition_a, linestyle="--", color="gray", alpha=0.6)
@@ -161,7 +182,9 @@ def make_live_panel_snapshot(
     plt.close()
 
 
-def generate_replay_gif(frame_paths: list[Path], gif_path: Path, frame_delay_ms: int = 50) -> None:
+def generate_replay_gif(
+    frame_paths: list[Path], gif_path: Path, frame_delay_ms: int = 50
+) -> None:
     if not frame_paths:
         return
     images = [Image.open(path).convert("RGB") for path in frame_paths]
@@ -213,7 +236,7 @@ def generate_formula_image(output_path: Path) -> None:
     ax.text(
         0.5,
         0.5,
-        r"$MSE = \\frac{1}{n}\\sum_{i=1}^{n}(Y_i - \\hat{Y}_i)^2$",
+        r"$MSE = \frac{1}{n}\sum_{i=1}^{n}(Y_i - \hat{Y}_i)^2$",
         ha="center",
         va="center",
         fontsize=24,
@@ -224,7 +247,7 @@ def generate_formula_image(output_path: Path) -> None:
 
 
 def sorted_frame_paths(output_dir: Path, target_name: str) -> list[Path]:
-    pattern = re.compile(rf"^{re.escape(target_name)}_(\\d{{4}})\\.jpg$")
+    pattern = re.compile(rf"^{re.escape(target_name)}_(\d{{4}})\.jpg$")
     candidates: list[tuple[int, Path]] = []
     for path in output_dir.glob(f"{target_name}_*.jpg"):
         match = pattern.match(path.name)
@@ -255,7 +278,9 @@ def run_single_target(
     for stale in output_dir.glob(f"{target_name}_*.gif"):
         stale.unlink(missing_ok=True)
 
-    save_canvas_jpeg(optimizer.canvas, output_dir / f"{target_name}_0000.jpg", quality=95)
+    save_canvas_jpeg(
+        optimizer.canvas, output_dir / f"{target_name}_0000.jpg", quality=95
+    )
 
     coarse_end, structural_end = phase_transition_iterations(iterations)
     phase_coarse_saved = False
@@ -270,10 +295,18 @@ def run_single_target(
         accepted = optimizer.step()
 
         if not phase_coarse_saved and optimizer.iteration >= max(1, coarse_end):
-            save_canvas_jpeg(optimizer.canvas, output_dir / f"{target_name}_phase_coarse.jpg", quality=95)
+            save_canvas_jpeg(
+                optimizer.canvas,
+                output_dir / f"{target_name}_phase_coarse.jpg",
+                quality=95,
+            )
             phase_coarse_saved = True
         if not phase_structural_saved and optimizer.iteration >= max(1, structural_end):
-            save_canvas_jpeg(optimizer.canvas, output_dir / f"{target_name}_phase_structural.jpg", quality=95)
+            save_canvas_jpeg(
+                optimizer.canvas,
+                output_dir / f"{target_name}_phase_structural.jpg",
+                quality=95,
+            )
             phase_structural_saved = True
 
         if accepted and optimizer.accepted_count % frame_interval_accepted == 0:
@@ -301,11 +334,17 @@ def run_single_target(
 
     runtime = time.perf_counter() - start_time
 
-    save_canvas_jpeg(optimizer.canvas, output_dir / f"{target_name}_phase_detail.jpg", quality=95)
-    save_canvas_jpeg(optimizer.canvas, output_dir / f"{target_name}_final.jpg", quality=100)
+    save_canvas_jpeg(
+        optimizer.canvas, output_dir / f"{target_name}_phase_detail.jpg", quality=95
+    )
+    save_canvas_jpeg(
+        optimizer.canvas, output_dir / f"{target_name}_final.jpg", quality=100
+    )
 
     frame_paths = sorted_frame_paths(output_dir, target_name)
-    generate_replay_gif(frame_paths, output_dir / f"{target_name}_replay.gif", frame_delay_ms=50)
+    generate_replay_gif(
+        frame_paths, output_dir / f"{target_name}_replay.gif", frame_delay_ms=50
+    )
 
     return RunResult(
         target_name=target_name,
@@ -321,7 +360,9 @@ def run_single_target(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Multi-target evolutionary art demo runner.")
+    parser = argparse.ArgumentParser(
+        description="Multi-target evolutionary art demo runner."
+    )
     parser.add_argument(
         "--iterations",
         type=int,
