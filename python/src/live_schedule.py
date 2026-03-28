@@ -914,6 +914,7 @@ def run_multi_resolution_schedule(
             use_high_frequency_targeting=True,
             residual_sigma=10.0,
             low_frequency_correction_strength=0.35,
+            max_add_attempts=1,
             start_softness=2.0,
             end_softness=0.5,
         )
