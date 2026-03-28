@@ -8,6 +8,11 @@ import numpy as np
 from PIL import Image
 
 from src.display import run_live_display
+from src.output_tools import (
+    LOG_SNAPSHOT_ITERATIONS,
+    quality_vs_budget_analysis,
+    save_log_evolution_frames,
+)
 from src.preprocessing import preprocess_target_array
 
 
@@ -69,6 +74,23 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=100,
         help="Display refresh interval in milliseconds.",
+    )
+    parser.add_argument(
+        "--close-after-seconds",
+        type=float,
+        default=None,
+        help="Auto-close live visualization after N seconds.",
+    )
+    parser.add_argument(
+        "--output-prefix",
+        type=str,
+        default=None,
+        help="Prefix for generated outputs (defaults to image filename stem).",
+    )
+    parser.add_argument(
+        "--skip-artifacts",
+        action="store_true",
+        help="Skip post-run artifact generation.",
     )
     parser.add_argument(
         "--no-display",
@@ -265,7 +287,7 @@ def main() -> int:
         "Controls: P pause/resume, S segmentation overlay, E error mode, R screenshot, Q quit, 1/2/3 variant view"
     )
 
-    run_live_display(
+    optimizer = run_live_display(
         target_image=preprocessed.target_rgb,
         target_pyramid=preprocessed.pyramid,
         structure_map=preprocessed.structure_map,
@@ -279,7 +301,39 @@ def main() -> int:
         update_interval_ms=args.update_interval_ms,
         random_seed=args.seed,
         target_mse=args.target_mse,
+        close_after_seconds=args.close_after_seconds,
+        snapshot_iterations=set(LOG_SNAPSHOT_ITERATIONS),
     )
+
+    prefix = (
+        args.output_prefix
+        if args.output_prefix is not None
+        else Path(args.image_path).stem.lower().replace(" ", "_")
+    )
+
+    print("=== Run Summary ===")
+    print(f"final_iteration: {optimizer.iteration}")
+    print(f"accepted_polygons: {optimizer.accepted_count}")
+    print(f"final_mse: {optimizer.current_mse:.6f}")
+    print(f"mse_improvement: {optimizer.initial_mse - optimizer.current_mse:.6f}")
+
+    if not args.skip_artifacts:
+        outputs_dir = Path("outputs")
+        saved = save_log_evolution_frames(
+            optimizer,
+            output_dir=outputs_dir,
+            prefix=prefix,
+            iterations=LOG_SNAPSHOT_ITERATIONS,
+        )
+        quality_plot, quality_csv = quality_vs_budget_analysis(
+            optimizer,
+            output_dir=outputs_dir,
+            prefix=prefix,
+        )
+
+        print(f"saved_log_frames: {len(saved)}")
+        print(f"quality_curve: {quality_plot}")
+        print(f"quality_data: {quality_csv}")
 
     return 0
 

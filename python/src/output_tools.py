@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from src.canvas import create_white_canvas
 from src.mse import perceptual_mse_lab
 from src.optimizer import HillClimbingOptimizer
 from src.renderer import render_polygons
@@ -72,7 +71,9 @@ def save_log_evolution_frames(
             c = idx % cols
             img = np.asarray(Image.open(path).convert("RGB"), dtype=np.uint8)
             axes_arr[r, c].imshow(img)
-            mse_val = optimizer.mse_history[min(iteration, len(optimizer.mse_history) - 1)]
+            mse_val = optimizer.mse_history[
+                min(iteration, len(optimizer.mse_history) - 1)
+            ]
             axes_arr[r, c].set_title(f"Iter {iteration} | MSE {mse_val:.4f}")
             axes_arr[r, c].axis("off")
 
@@ -83,7 +84,11 @@ def save_log_evolution_frames(
             axes_arr[r, c].axis("off")
 
         fig.tight_layout()
-        fig.savefig(output_dir / f"{prefix}_log_evolution_grid.png", dpi=170, bbox_inches="tight")
+        fig.savefig(
+            output_dir / f"{prefix}_log_evolution_grid.png",
+            dpi=170,
+            bbox_inches="tight",
+        )
         plt.close(fig)
 
     return saved
@@ -165,7 +170,9 @@ def quality_vs_budget_analysis(
         axes_arr[r, c].axis("off")
 
     fig.tight_layout()
-    fig.savefig(output_dir / f"{prefix}_budget_gallery.png", dpi=170, bbox_inches="tight")
+    fig.savefig(
+        output_dir / f"{prefix}_budget_gallery.png", dpi=170, bbox_inches="tight"
+    )
     plt.close(fig)
 
     return curve_path, csv_path

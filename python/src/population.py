@@ -95,7 +95,9 @@ class PopulationHillClimber:
         self.max_iterations = int(max_iterations)
         self.recombination_interval = int(recombination_interval)
         self.snapshot_iterations = (
-            set() if snapshot_iterations is None else {int(i) for i in snapshot_iterations if int(i) > 0}
+            set()
+            if snapshot_iterations is None
+            else {int(i) for i in snapshot_iterations if int(i) > 0}
         )
 
         self.personalities = (
