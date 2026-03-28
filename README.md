@@ -15,9 +15,11 @@ Main implementation files:
 - [python/src/mse.py](python/src/mse.py): Scalar MSE, raw error map, Gaussian-smoothed probability map.
 - [python/src/polygon.py](python/src/polygon.py): Shape dataclass/enum and candidate generation.
 - [python/src/renderer.py](python/src/renderer.py): Rasterization and alpha blending.
-- [python/src/optimizer.py](python/src/optimizer.py): Main hill-climbing loop, phase scheduling, acceptance tracking.
+- [python/src/preprocessing.py](python/src/preprocessing.py): Phase 1 preprocessing (4-level Gaussian pyramid, LAB k-means segmentation, Sobel structure map, complexity scoring, adaptive recommendations).
+- [python/src/optimizer.py](python/src/optimizer.py): Main hill-climbing loop with phase scheduling, multi-scale loss weighting, edge-aware guidance, and acceptance tracking.
 - [python/src/display.py](python/src/display.py): Four-panel live visualization with threaded optimizer/display separation.
 - [python/demo.py](python/demo.py): Multi-target batch runner, frame/GIF/grid/formula/stat generation.
+- [python/run.py](python/run.py): Custom-image entry point with preprocessing summary and live run launch.
 
 ## Targets
 Targets are in [python/targets](python/targets):
@@ -70,6 +72,52 @@ Quick artifact smoke test (200 iters each):
 ```powershell
 Set-Location python
 uv run python demo.py --iterations 200
+```
+
+## Live Matplotlib Visualization (AI in Action)
+Use the custom-image runner to open the 4-panel live Matplotlib window and watch the optimizer evolve the canvas in real time.
+
+Shape cycle used continuously during optimization:
+- triangle
+- quadrilateral
+- ellipse
+
+Run on any image path:
+
+```powershell
+Set-Location python
+uv run python run.py .\targets\face.png
+```
+
+You will see a startup analysis summary (complexity score, recommended polygon budget, detected color regions), then a live window with:
+- target image
+- attention/error map
+- evolving canvas
+- live stats + MSE decay
+
+Run all provided sample targets one by one:
+
+```powershell
+Set-Location python
+uv run python run.py .\targets\heart.png
+uv run python run.py .\targets\logo.png
+uv run python run.py .\targets\face.png
+```
+
+Useful overrides:
+
+```powershell
+# manually force polygon budget
+uv run python run.py .\targets\face.png --polygons 300
+
+# override coarse-phase max polygon size
+uv run python run.py .\targets\face.png --max-size 26
+```
+
+Headless/check mode (no GUI window):
+
+```powershell
+uv run python run.py .\targets\face.png --no-display
 ```
 
 ## Generated Outputs

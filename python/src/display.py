@@ -63,7 +63,7 @@ def _optimizer_worker(
 ) -> None:
     previous_phase = get_phase_name(0, optimizer.max_iterations)
 
-    while optimizer.iteration < optimizer.max_iterations and not stop_event.is_set():
+    while not optimizer.is_done and not stop_event.is_set():
         optimizer.step()
         phase_name = optimizer.current_phase
         phase_change_iteration: int | None = None
@@ -94,11 +94,19 @@ def run_live_display(
     capture_path: str = "screenshot.jpg",
     close_after_seconds: float | None = None,
     random_seed: int | None = None,
+    target_pyramid: list[np.ndarray] | None = None,
+    structure_map: np.ndarray | None = None,
+    size_schedule: dict[str, float] | None = None,
+    max_polygons: int | None = None,
 ) -> HillClimbingOptimizer:
     optimizer = HillClimbingOptimizer(
         target_image=target_image,
         max_iterations=max_iterations,
         random_seed=random_seed,
+        target_pyramid=target_pyramid,
+        structure_map=structure_map,
+        size_schedule=size_schedule,
+        max_polygons=max_polygons,
     )
 
     lock = threading.Lock()
@@ -248,6 +256,11 @@ def run_live_display(
                     f"mse            : {current_mse:.4f}",
                     f"acceptance     : {acceptance_rate * 100.0:6.2f}%",
                     f"accepted polys : {accepted_count}",
+                    (
+                        f"polygon budget : {accepted_count}/{optimizer.max_polygons}"
+                        if optimizer.max_polygons is not None
+                        else "polygon budget : unlimited"
+                    ),
                     f"phase          : {phase_name}",
                 ]
             )
