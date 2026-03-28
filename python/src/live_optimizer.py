@@ -85,7 +85,7 @@ class LiveJointOptimizer:
         self.step_count = 0
         initial = self.rasterizer.render(self.polygons, softness=2.0)
         self.current_canvas = initial.canvas
-        self.loss_history: list[float] = [self._loss(self.current_canvas)]
+        self.loss_history: list[float] = [self._loss(self.current_canvas, self.target)]
 
     @staticmethod
     def _loss(canvas: np.ndarray, target: np.ndarray | None = None) -> float:
@@ -386,7 +386,15 @@ class LiveJointOptimizer:
         self.polygons.sizes = np.concatenate(
             [
                 self.polygons.sizes,
-                np.array([[max(size_x, self.config.min_size), max(size_y, self.config.min_size)]], dtype=np.float32),
+                np.array(
+                    [
+                        [
+                            max(size_x, self.config.min_size),
+                            max(size_y, self.config.min_size),
+                        ]
+                    ],
+                    dtype=np.float32,
+                ),
             ],
             axis=0,
         )
@@ -409,7 +417,10 @@ class LiveJointOptimizer:
             axis=0,
         )
         self.polygons.alphas = np.concatenate(
-            [self.polygons.alphas, np.array([float(np.clip(alpha, 0.0, 1.0))], dtype=np.float32)],
+            [
+                self.polygons.alphas,
+                np.array([float(np.clip(alpha, 0.0, 1.0))], dtype=np.float32),
+            ],
             axis=0,
         )
         self.polygons.shape_types = np.concatenate(

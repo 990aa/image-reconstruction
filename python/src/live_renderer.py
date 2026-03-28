@@ -135,7 +135,7 @@ class SoftRasterizer:
         if vertices.ndim != 3 or vertices.shape[2] != 2:
             raise ValueError("vertices must have shape (K, M, 2).")
 
-        k_count, vertex_count, _ = vertices.shape
+        _, vertex_count, _ = vertices.shape
         if vertex_count < 3:
             raise ValueError("Convex polygon needs at least 3 vertices.")
 
@@ -149,8 +149,9 @@ class SoftRasterizer:
         dx = self.grid_x[None, None, :, :] - starts[:, :, 0][:, :, None, None]
         dy = self.grid_y[None, None, :, :] - starts[:, :, 1][:, :, None, None]
 
-        signed_edge_dist = (edge_x[:, :, None, None] * dy - edge_y[:, :, None, None] * dx) /
-        edge_norm[:, :, None, None]
+        signed_edge_dist = (
+            edge_x[:, :, None, None] * dy - edge_y[:, :, None, None] * dx
+        ) / edge_norm[:, :, None, None]
 
         area = 0.5 * np.sum(
             starts[:, :, 0] * ends[:, :, 1] - starts[:, :, 1] * ends[:, :, 0],
