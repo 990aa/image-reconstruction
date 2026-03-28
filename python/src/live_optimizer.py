@@ -25,9 +25,13 @@ class LiveOptimizerConfig:
     position_eps_px: float = 2.0
     size_eps_ratio: float = 0.10
     min_size: float = 1.0
+    max_size: float | None = None
     max_alpha: float = 1.0
     min_alpha: float = 0.0
     exact_fd: bool = False
+    render_chunk_size: int = 50
+    position_update_interval: int = 1
+    size_update_interval: int = 1
 
 
 class _AdamState:
@@ -84,7 +88,11 @@ class LiveJointOptimizer:
         self._alpha_adam = _AdamState(self.polygons.alphas.shape)
 
         self.step_count = 0
-        initial = self.rasterizer.render(self.polygons, softness=2.0)
+        initial = self.rasterizer.render(
+            self.polygons,
+            softness=2.0,
+            chunk_size=self.config.render_chunk_size,
+        )
         self.current_canvas = initial.canvas
         self.loss_history: list[float] = [self._loss(self.current_canvas, self.target)]
 
@@ -141,7 +149,11 @@ class LiveJointOptimizer:
                 self.polygons.sizes[index, 0] = float(max(size_x, self.config.min_size))
                 self.polygons.sizes[index, 1] = float(max(size_y, self.config.min_size))
 
-                trial_render = self.rasterizer.render(self.polygons, softness=softness)
+                trial_render = self.rasterizer.render(
+                    self.polygons,
+                    softness=softness,
+                    chunk_size=self.config.render_chunk_size,
+                )
                 return self._loss(trial_render.canvas, self.target)
             finally:
                 self.polygons.centers[index] = old_center
@@ -280,12 +292,43 @@ class LiveJointOptimizer:
         if softness <= 0.0:
             raise ValueError("softness must be positive.")
 
-        render = self.rasterizer.render(self.polygons, softness=softness)
+        render = self.rasterizer.render(
+            self.polygons,
+            softness=softness,
+            chunk_size=self.config.render_chunk_size,
+        )
         previous_loss = self._loss(render.canvas, self.target)
 
         grad_color = self._color_gradient(render)
         grad_alpha = self._alpha_gradient(render)
-        grad_position, grad_size = self._position_and_size_gradients(render, softness)
+
+        update_position = (
+            self.config.position_update_interval > 0
+            and (self.step_count % self.config.position_update_interval == 0)
+        )
+        update_size = (
+            self.config.size_update_interval > 0
+            and (self.step_count % self.config.size_update_interval == 0)
+        )
+
+        if update_position or update_size:
+            full_pos_grad, full_size_grad = self._position_and_size_gradients(
+                render,
+                softness,
+            )
+            grad_position = (
+                full_pos_grad
+                if update_position
+                else np.zeros_like(full_pos_grad, dtype=np.float32)
+            )
+            grad_size = (
+                full_size_grad
+                if update_size
+                else np.zeros_like(full_size_grad, dtype=np.float32)
+            )
+        else:
+            grad_position = np.zeros_like(self.polygons.centers, dtype=np.float32)
+            grad_size = np.zeros_like(self.polygons.sizes, dtype=np.float32)
 
         lr_color = self._decayed_lr(
             self.config.color_lr,
@@ -339,13 +382,22 @@ class LiveJointOptimizer:
             self.rasterizer.height - 1.0,
         )
 
+        max_size = (
+            max(self.rasterizer.width, self.rasterizer.height)
+            if self.config.max_size is None
+            else float(self.config.max_size)
+        )
         self.polygons.sizes = np.clip(
             self.polygons.sizes - self._size_adam.step(grad_size, lr_size),
             self.config.min_size,
-            max(self.rasterizer.width, self.rasterizer.height),
+            max_size,
         ).astype(np.float32, copy=False)
 
-        updated_render = self.rasterizer.render(self.polygons, softness=softness)
+        updated_render = self.rasterizer.render(
+            self.polygons,
+            softness=softness,
+            chunk_size=self.config.render_chunk_size,
+        )
         updated_loss = self._loss(updated_render.canvas, self.target)
 
         # Keep updates near-monotonic for stable convergence diagnostics.

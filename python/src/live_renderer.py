@@ -242,7 +242,7 @@ class SoftRasterizer:
         self,
         polygons: LivePolygonBatch,
         softness: float,
-        chunk_size: int = 128,
+        chunk_size: int = 50,
     ) -> np.ndarray:
         if softness <= 0.0:
             raise ValueError("softness must be positive.")
@@ -254,32 +254,48 @@ class SoftRasterizer:
         if n == 0:
             return coverage
 
-        for shape_type in (SHAPE_TRIANGLE, SHAPE_QUAD, SHAPE_ELLIPSE):
-            indices = np.where(polygons.shape_types == shape_type)[0]
-            if indices.size == 0:
-                continue
+        softness_value = float(softness)
+        for start in range(0, n, chunk_size):
+            end = min(start + chunk_size, n)
+            shape_chunk = polygons.shape_types[start:end]
+            centers = polygons.centers[start:end]
+            sizes = polygons.sizes[start:end]
+            rotations = polygons.rotations[start:end]
 
-            for start in range(0, indices.size, chunk_size):
-                chunk = indices[start : start + chunk_size]
-                centers = polygons.centers[chunk]
-                sizes = polygons.sizes[chunk]
-                rotations = polygons.rotations[chunk]
+            tri_idx = np.where(shape_chunk == SHAPE_TRIANGLE)[0]
+            if tri_idx.size > 0:
+                tri_vertices = self._triangle_vertices(
+                    centers[tri_idx],
+                    sizes[tri_idx],
+                    rotations[tri_idx],
+                )
+                tri_signed = self._convex_signed_distance(tri_vertices)
+                coverage[start:end][tri_idx] = self._sigmoid(tri_signed / softness_value)
+                del tri_vertices, tri_signed
 
-                if shape_type == SHAPE_TRIANGLE:
-                    vertices = self._triangle_vertices(centers, sizes, rotations)
-                    signed = self._convex_signed_distance(vertices)
-                    coverage[chunk] = self._sigmoid(signed / float(softness))
-                elif shape_type == SHAPE_QUAD:
-                    vertices = self._quad_vertices(centers, sizes, rotations)
-                    signed = self._convex_signed_distance(vertices)
-                    coverage[chunk] = self._sigmoid(signed / float(softness))
-                else:
-                    coverage[chunk] = self._ellipse_coverage(
-                        centers,
-                        sizes,
-                        rotations,
-                        softness,
-                    )
+            quad_idx = np.where(shape_chunk == SHAPE_QUAD)[0]
+            if quad_idx.size > 0:
+                quad_vertices = self._quad_vertices(
+                    centers[quad_idx],
+                    sizes[quad_idx],
+                    rotations[quad_idx],
+                )
+                quad_signed = self._convex_signed_distance(quad_vertices)
+                coverage[start:end][quad_idx] = self._sigmoid(
+                    quad_signed / softness_value
+                )
+                del quad_vertices, quad_signed
+
+            ellipse_idx = np.where(shape_chunk == SHAPE_ELLIPSE)[0]
+            if ellipse_idx.size > 0:
+                coverage[start:end][ellipse_idx] = self._ellipse_coverage(
+                    centers[ellipse_idx],
+                    sizes[ellipse_idx],
+                    rotations[ellipse_idx],
+                    softness_value,
+                )
+
+            del shape_chunk, centers, sizes, rotations, tri_idx, quad_idx, ellipse_idx
 
         return coverage.astype(np.float32, copy=False)
 
@@ -339,6 +355,7 @@ class SoftRasterizer:
         polygons: LivePolygonBatch,
         softness: float,
         base_canvas: np.ndarray | None = None,
+        chunk_size: int = 50,
     ) -> SoftRenderResult:
         if softness <= 0.0:
             raise ValueError("softness must be positive.")
@@ -351,7 +368,7 @@ class SoftRasterizer:
                 raise ValueError("base_canvas must have shape (H, W, 3).")
             base = base_canvas.astype(np.float32, copy=False)
 
-        coverage = self.coverage_batch(polygons, softness)
+        coverage = self.coverage_batch(polygons, softness, chunk_size=chunk_size)
         effective_alpha = coverage * polygons.alphas[:, None, None]
 
         if n == 0:
