@@ -133,18 +133,7 @@ All runs produce final canvases, replay GIFs, and a comparison grid (`comparison
 - Adaptive sigma and/or schedule conditioned on convergence slope.
 - Hybrid local refinement (small gradient-based color perturbation).
 
-## 9. Reproducibility
-Primary execution commands:
-
-```powershell
-Set-Location python
-uv run python demo.py
-uv run python -m pytest tests/test_mse.py tests/test_renderer.py tests/test_optimizer.py -v
-```
-
-Presentation artifacts can be regenerated from produced outputs.
-
-## 10. Conclusion
+## 9. Conclusion
 The project demonstrates that a compact evolutionary search with error-guided attention can reconstruct images effectively while remaining interpretable and testable. The method provides a pedagogically useful bridge between classical optimization concepts and modern attention-based reasoning.
 
 ## References
