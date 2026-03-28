@@ -376,7 +376,7 @@ class SoftRasterizer:
 
         weights = trans_after * effective_alpha
         layer_rgb = np.einsum("nhw,nc->hwc", weights, polygons.colors, optimize=True)
-        canvas = layer_rgb + base * inclusive_trans[-1][:, :, None]
+        canvas = layer_rgb + base * inclusive_trans[0][:, :, None]
         canvas = np.clip(canvas, 0.0, 1.0).astype(np.float32, copy=False)
 
         return SoftRenderResult(
