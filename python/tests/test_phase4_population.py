@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.population import PopulationHillClimber
+from src.population import PopulationHillClimber, VariantPersonality
 from src.polygon import Polygon, ShapeType
 from src.preprocessing import preprocess_target_array
 from src.renderer import render_polygons
@@ -38,6 +38,15 @@ def test_population_diversity_beats_primary_somewhere() -> None:
 
     prep = preprocess_target_array(target, random_seed=11, base_resolution=120)
 
+    personalities = [
+        VariantPersonality(name="primary-random", random_placement_mode=True),
+        VariantPersonality(name="edge-emphasis", structure_bias_mode="edge"),
+        VariantPersonality(name="flat-bias", structure_bias_mode="flat"),
+        VariantPersonality(name="large", size_multiplier=1.5),
+        VariantPersonality(name="small", size_multiplier=0.5),
+        VariantPersonality(name="aggressive", death_interval_iterations=200),
+    ]
+
     population = PopulationHillClimber(
         target_image=prep.target_rgb,
         max_iterations=1000,
@@ -49,6 +58,7 @@ def test_population_diversity_beats_primary_somewhere() -> None:
         cluster_variances_lab=prep.cluster_variances_lab,
         size_schedule=prep.recommended_size_schedule,
         random_seed=11,
+        personalities=personalities,
         recombination_interval=250,
     )
 

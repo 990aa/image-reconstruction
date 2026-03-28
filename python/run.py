@@ -3,14 +3,12 @@ from __future__ import annotations
 import argparse
 import math
 import sys
-import time
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from src.display import run_live_display
-from src.optimizer import HillClimbingOptimizer
 from src.preprocessing import preprocess_target_array
 
 
@@ -93,7 +91,12 @@ def _resolve_fit_mode(
     if no_prompt or not interactive:
         return "crop"
 
-    choice = input("Fit image to square: [C]enter-crop (default) or [L]etterbox? ").strip().lower()
+    try:
+        choice = input(
+            "Fit image to square: [C]enter-crop (default) or [L]etterbox? "
+        ).strip().lower()
+    except EOFError:
+        return "crop"
     if choice.startswith("l"):
         return "letterbox"
     return "crop"
@@ -138,44 +141,24 @@ def _estimate_runtime_seconds(
     target_mse: float,
     seed: int,
 ) -> tuple[float | None, float | None]:
-    sample_iterations = max(40, min(200, max_iterations // 20 if max_iterations > 0 else 60))
+    del seed
 
-    optimizer = HillClimbingOptimizer(
-        target_image=preprocessed.target_rgb,
-        max_iterations=sample_iterations,
-        target_pyramid=preprocessed.pyramid,
-        structure_map=preprocessed.structure_map,
-        gradient_angle_map=preprocessed.gradient_angle_map,
-        segmentation_map=preprocessed.segmentation_map,
-        cluster_centroids_lab=preprocessed.cluster_centroids_lab,
-        cluster_variances_lab=preprocessed.cluster_variances_lab,
-        size_schedule=preprocessed.recommended_size_schedule,
-        random_seed=seed,
-    )
+    resolution = float(preprocessed.base_resolution)
+    complexity = float(np.clip(preprocessed.complexity_score, 0.0, 1.0))
 
-    start = time.perf_counter()
-    optimizer.run(iterations=sample_iterations)
-    elapsed = max(1e-6, time.perf_counter() - start)
-    iter_rate = sample_iterations / elapsed
+    base_rate_200 = 2300.0
+    resolution_penalty = (200.0 / max(resolution, 1.0)) ** 2
+    complexity_penalty = 1.0 - 0.22 * complexity
+    iter_rate = base_rate_200 * resolution_penalty * complexity_penalty
 
-    mse_hist = optimizer.mse_history
-    if len(mse_hist) < 2:
-        return iter_rate, None
+    target_factor = max(0.5, min(2.0, (0.01 / max(target_mse, 1e-6)) ** 0.35))
+    expected_iters = (1200.0 + 2600.0 * complexity) * target_factor * (
+        resolution / 200.0
+    ) ** 2
+    usable_iters = min(float(max_iterations), expected_iters)
+    eta_seconds = usable_iters / max(iter_rate, 1e-6)
 
-    first = float(mse_hist[0])
-    last = float(mse_hist[-1])
-    if last <= target_mse:
-        return iter_rate, 0.0
-    if first <= 0.0 or last <= 0.0 or last >= first:
-        return iter_rate, None
-
-    decay_per_iter = math.log(first / last) / max(sample_iterations, 1)
-    if decay_per_iter <= 1e-9:
-        return iter_rate, None
-
-    remaining_iters = math.log(last / max(target_mse, 1e-9)) / decay_per_iter
-    remaining_iters = max(0.0, remaining_iters)
-    return iter_rate, remaining_iters / max(iter_rate, 1e-6)
+    return float(iter_rate), float(eta_seconds)
 
 
 def print_analysis(preprocessed, *, original_size: tuple[int, int], fit_mode: str, iterations: int, target_mse: float, iter_rate: float | None, eta_seconds: float | None) -> None:
