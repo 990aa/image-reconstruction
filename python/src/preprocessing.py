@@ -4,23 +4,31 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, sobel
+from scipy.ndimage import gaussian_filter
 from skimage import color
-from sklearn.cluster import KMeans
+from skimage.filters import sobel_h, sobel_v
+from sklearn.cluster import MiniBatchKMeans
 
 from src.image_loader import load_target_image
 
 
-PYRAMID_LEVEL_SIZES: tuple[tuple[int, int], ...] = (
-    (200, 200),
-    (100, 100),
-    (50, 50),
-    (25, 25),
-)
+DEFAULT_BASE_RESOLUTION = 200
+
+
+def build_level_sizes(base_resolution: int) -> tuple[tuple[int, int], ...]:
+    if base_resolution <= 0:
+        raise ValueError("base_resolution must be positive.")
+
+    l0 = int(base_resolution)
+    l1 = max(2, int(round(base_resolution / 2.0)))
+    l2 = max(2, int(round(base_resolution / 4.0)))
+    l3 = max(2, int(round(base_resolution / 8.0)))
+    return ((l0, l0), (l1, l1), (l2, l2), (l3, l3))
 
 
 @dataclass(frozen=True)
 class PreprocessedTarget:
+    base_resolution: int
     target_rgb: np.ndarray
     pyramid: list[np.ndarray]
     segmentation_map: np.ndarray
@@ -53,7 +61,7 @@ def _resize_float_image(image: np.ndarray, size: tuple[int, int]) -> np.ndarray:
 
 def build_gaussian_pyramid(
     target_rgb: np.ndarray,
-    level_sizes: tuple[tuple[int, int], ...] = PYRAMID_LEVEL_SIZES,
+    level_sizes: tuple[tuple[int, int], ...],
 ) -> list[np.ndarray]:
     if len(level_sizes) != 4:
         raise ValueError("This phase requires exactly four pyramid levels.")
@@ -83,7 +91,13 @@ def segment_image_lab(
     lab = color.rgb2lab(np.clip(target_rgb, 0.0, 1.0).astype(np.float32, copy=False))
     flat = lab.reshape(-1, 3)
 
-    model = KMeans(n_clusters=k_clusters, n_init=10, random_state=random_seed)
+    model = MiniBatchKMeans(
+        n_clusters=k_clusters,
+        n_init=3,
+        random_state=random_seed,
+        batch_size=2048,
+        max_iter=100,
+    )
     labels = model.fit_predict(flat)
 
     seg_map = labels.reshape(h, w).astype(np.int32, copy=False)
@@ -109,8 +123,8 @@ def compute_structure_and_direction(
     target_rgb: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     gray = np.mean(target_rgb.astype(np.float32, copy=False), axis=2)
-    gx = sobel(gray, axis=1, mode="reflect")
-    gy = sobel(gray, axis=0, mode="reflect")
+    gx = sobel_h(gray).astype(np.float32, copy=False)
+    gy = sobel_v(gray).astype(np.float32, copy=False)
     grad = np.hypot(gx, gy).astype(np.float32, copy=False)
 
     g_min = float(np.min(grad))
@@ -189,12 +203,15 @@ def preprocess_target_array(
     polygon_override: int | None = None,
     max_size_override: float | None = None,
     random_seed: int = 0,
+    base_resolution: int = DEFAULT_BASE_RESOLUTION,
 ) -> PreprocessedTarget:
     if target_rgb.ndim != 3 or target_rgb.shape[2] != 3:
         raise ValueError("target_rgb must have shape (H, W, 3).")
 
-    base_target = _resize_float_image(target_rgb, PYRAMID_LEVEL_SIZES[0])
-    pyramid = build_gaussian_pyramid(base_target, PYRAMID_LEVEL_SIZES)
+    level_sizes = build_level_sizes(base_resolution)
+
+    base_target = _resize_float_image(target_rgb, level_sizes[0])
+    pyramid = build_gaussian_pyramid(base_target, level_sizes)
     structure_map, gradient_angle_map = compute_structure_and_direction(base_target)
     complexity = compute_complexity_score(base_target, structure_map)
 
@@ -215,6 +232,7 @@ def preprocess_target_array(
     )
 
     return PreprocessedTarget(
+        base_resolution=int(base_resolution),
         target_rgb=base_target,
         pyramid=pyramid,
         segmentation_map=segmentation_map,
@@ -235,11 +253,14 @@ def preprocess_target_image(
     polygon_override: int | None = None,
     max_size_override: float | None = None,
     random_seed: int = 0,
+    base_resolution: int = DEFAULT_BASE_RESOLUTION,
 ) -> PreprocessedTarget:
-    target_rgb = load_target_image(image_path, size=PYRAMID_LEVEL_SIZES[0])
+    level_sizes = build_level_sizes(base_resolution)
+    target_rgb = load_target_image(image_path, size=level_sizes[0])
     return preprocess_target_array(
         target_rgb=target_rgb,
         polygon_override=polygon_override,
         max_size_override=max_size_override,
         random_seed=random_seed,
+        base_resolution=base_resolution,
     )
