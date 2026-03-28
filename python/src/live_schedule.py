@@ -533,11 +533,20 @@ def progressive_growth(
                 )
 
                 target_size = float(region_window)
+                if use_high_frequency_targeting:
+                    target_size = float(max(min_new_size, target_size * 0.7))
                 sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
                 sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
 
                 cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
                 cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
+
+                if use_high_frequency_targeting:
+                    center_target = optimizer.target[cy_i, cx_i]
+                    center_canvas = optimizer.current_canvas[cy_i, cx_i]
+                    local_delta = np.clip(center_target - center_canvas, -0.35, 0.35)
+                    detail_color = np.clip(center_canvas + 1.4 * local_delta, 0.0, 1.0)
+                    patch_color = (0.25 * patch_color + 0.75 * detail_color).astype(np.float32, copy=False)
 
                 selected_shape = (
                     _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
