@@ -448,6 +448,8 @@ def progressive_growth(
     residual_sigma: float = 10.0,
     low_frequency_correction_strength: float = 0.35,
     max_add_attempts: int = 10,
+    enforce_cycle_improvement: bool = True,
+    max_recovery_steps: int | None = None,
     start_softness: float = 2.0,
     end_softness: float = 0.5,
 ) -> tuple[list[GrowthCycleResult], list[GrowthEvent]]:
@@ -676,6 +678,21 @@ def progressive_growth(
             softness=end_softness,
         )
 
+        recovery_steps = 0
+        if not enforce_cycle_improvement:
+            cycle_results.append(
+                GrowthCycleResult(
+                    cycle_index=cycle_index,
+                    batch_size=int(batch_size),
+                    loss_before_cycle=loss_before_cycle,
+                    loss_before_addition=loss_before_add,
+                    loss_after_cycle=float(optimizer.loss_history[-1]),
+                    optimization_steps=int(pre_steps + post_steps),
+                    converged_before_addition=bool(converged),
+                )
+            )
+            continue
+
         if float(optimizer.loss_history[-1]) >= loss_before_cycle and best_cycle_loss < loss_before_cycle:
             optimizer.restore_state(
                 best_polygons.copy(),
@@ -684,8 +701,11 @@ def progressive_growth(
                 record_loss=True,
             )
 
-        recovery_steps = 0
-        recovery_budget = max(60, post_add_steps * 8)
+        recovery_budget = (
+            max(60, post_add_steps * 8)
+            if max_recovery_steps is None
+            else max(0, int(max_recovery_steps))
+        )
         while float(optimizer.loss_history[-1]) >= loss_before_cycle and recovery_steps < recovery_budget:
             optimizer.step(softness=end_softness)
             recovery_steps += 1
@@ -919,6 +939,8 @@ def run_multi_resolution_schedule(
             residual_sigma=10.0,
             low_frequency_correction_strength=0.35,
             max_add_attempts=1,
+            enforce_cycle_improvement=False,
+            max_recovery_steps=0,
             start_softness=2.0,
             end_softness=0.5,
         )
