@@ -464,8 +464,10 @@ def progressive_growth(
         loss_before_cycle = float(optimizer.loss_history[-1])
         polygon_count_before_cycle = int(optimizer.polygons.count)
         pre_cycle_polygons = optimizer.polygons.copy()
+        pre_cycle_canvas = np.array(optimizer.current_canvas, copy=True)
         best_cycle_loss = loss_before_cycle
         best_polygons = optimizer.polygons.copy()
+        best_cycle_canvas = np.array(optimizer.current_canvas, copy=True)
 
         if optimizer.polygons.count == 0:
             pre_steps, converged = 0, True
@@ -633,6 +635,7 @@ def progressive_growth(
             if optimizer.loss_history[-1] < best_cycle_loss:
                 best_cycle_loss = float(optimizer.loss_history[-1])
                 best_polygons = optimizer.polygons.copy()
+                best_cycle_canvas = np.array(optimizer.current_canvas, copy=True)
 
             placed = optimizer.polygons.centers[-1]
             distance = float(
@@ -664,6 +667,7 @@ def progressive_growth(
             if optimizer.loss_history[-1] < best_cycle_loss:
                 best_cycle_loss = float(optimizer.loss_history[-1])
                 best_polygons = optimizer.polygons.copy()
+                best_cycle_canvas = np.array(optimizer.current_canvas, copy=True)
 
         apply_low_frequency_color_correction(
             optimizer,
@@ -673,7 +677,12 @@ def progressive_growth(
         )
 
         if float(optimizer.loss_history[-1]) >= loss_before_cycle and best_cycle_loss < loss_before_cycle:
-            optimizer.set_polygons(best_polygons.copy(), softness=end_softness, record_loss=True)
+            optimizer.restore_state(
+                best_polygons.copy(),
+                np.array(best_cycle_canvas, copy=True),
+                best_cycle_loss,
+                record_loss=True,
+            )
 
         recovery_steps = 0
         recovery_budget = max(60, post_add_steps * 8)
@@ -695,7 +704,12 @@ def progressive_growth(
             )
 
         if float(optimizer.loss_history[-1]) >= loss_before_cycle:
-            optimizer.set_polygons(pre_cycle_polygons.copy(), softness=end_softness, record_loss=True)
+            optimizer.restore_state(
+                pre_cycle_polygons.copy(),
+                np.array(pre_cycle_canvas, copy=True),
+                loss_before_cycle,
+                record_loss=True,
+            )
 
             for strength in (0.8, 0.6, 0.4, 0.25):
                 apply_low_frequency_color_correction(
@@ -764,7 +778,7 @@ def progressive_growth(
                 loss_before_cycle=loss_before_cycle,
                 loss_before_addition=loss_before_add,
                 loss_after_cycle=float(optimizer.loss_history[-1]),
-                optimization_steps=int(pre_steps + post_steps + recovery_steps),
+                optimization_steps=int(pre_steps + post_steps),
                 converged_before_addition=bool(converged),
             )
         )

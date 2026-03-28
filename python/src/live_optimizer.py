@@ -118,6 +118,22 @@ class LiveJointOptimizer:
         if record_loss:
             self.loss_history.append(self._loss(self.current_canvas, self.target))
 
+    def restore_state(
+        self,
+        polygons: LivePolygonBatch,
+        canvas: np.ndarray,
+        loss_value: float,
+        *,
+        record_loss: bool = True,
+    ) -> None:
+        if canvas.shape != self.target.shape:
+            raise ValueError("canvas shape must match target shape")
+        self.polygons = polygons
+        self._reset_adam_states()
+        self.current_canvas = np.clip(canvas, 0.0, 1.0).astype(np.float32, copy=False)
+        if record_loss:
+            self.loss_history.append(float(loss_value))
+
     def remove_last_polygon(self, *, softness: float = 0.5, record_loss: bool = True) -> None:
         if self.polygons.count == 0:
             return
