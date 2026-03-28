@@ -1,8 +1,5 @@
 # Attention-Guided Evolutionary Art
 
-Name: Abdul Ahad  
-Reg. No.: 245805010
-
 ## Overview
 This project reconstructs small RGB target images (100x100) using an evolutionary hill-climbing process that places semi-transparent geometric primitives (triangles, quadrilaterals, ellipses) one at a time.
 
