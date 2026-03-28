@@ -12,7 +12,7 @@ from src.live_schedule import (
 
 
 def test_phase4_multi_resolution_schedule_beats_single_resolution() -> None:
-    target_200 = load_square_target(Path("targets/internet_portrait.jpg"), resolution=200)
+    target_200 = load_square_target(Path("targets/grape.jpg"), resolution=200)
 
     config = LiveOptimizerConfig(
         color_lr=0.05,
@@ -20,15 +20,16 @@ def test_phase4_multi_resolution_schedule_beats_single_resolution() -> None:
         size_lr=0.0006,
         alpha_lr=0.02,
         render_chunk_size=50,
-        position_update_interval=8,
-        size_update_interval=12,
+        position_update_interval=10,
+        size_update_interval=14,
+        max_fd_polygons=10,
     )
 
     result = run_multi_resolution_schedule(
         target_image=target_200,
         random_seed=77,
         include_round4=False,
-        max_steps_per_cycle=10,
+        max_steps_per_cycle=8,
         post_add_steps=3,
         convergence_window=100,
         convergence_rel_threshold=0.001,

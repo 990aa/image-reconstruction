@@ -456,74 +456,7 @@ def progressive_growth(
     estimated_steps = max(1, len(batch_schedule) * (max_steps_per_cycle + post_add_steps))
     mag_map, circ_map, angle_map = _compute_structure_maps(optimizer.target)
 
-    if optimizer.polygons.count == 0 and batch_schedule:
-        seed_count = int(batch_schedule[0])
-        target_map = (
-            high_frequency_error_map(optimizer.target, optimizer.current_canvas, sigma=residual_sigma)
-            if use_high_frequency_targeting
-            else None
-        )
-        for _ in range(seed_count):
-            target_center, (x0, y0, x1, y1), patch_color = highest_error_region_center(
-                optimizer.target,
-                optimizer.current_canvas,
-                window=region_window,
-                guide_map=target_map,
-            )
-            target_size = float(region_window)
-            sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
-            sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
-
-            cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
-            cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
-
-            selected_shape = (
-                _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
-                if use_content_aware_shapes
-                else shape_type
-            )
-            rotation, params = _initialize_shape_params(
-                shape_type=selected_shape,
-                center_x=float(cx_i),
-                center_y=float(cy_i),
-                size_x=sx,
-                size_y=sy,
-                angle_map=angle_map,
-                x0=x0,
-                y0=y0,
-                x1=x1,
-                y1=y1,
-            )
-
-            optimizer.add_polygon(
-                center_x=float(cx_i),
-                center_y=float(cy_i),
-                size_x=sx,
-                size_y=sy,
-                color=(
-                    float(np.clip(patch_color[0], 0.0, 1.0)),
-                    float(np.clip(patch_color[1], 0.0, 1.0)),
-                    float(np.clip(patch_color[2], 0.0, 1.0)),
-                ),
-                alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
-                shape_type=selected_shape,
-                rotation=rotation,
-                shape_params=params,
-            )
-
-            current_softness = _softness_for_step(
-                step_index=optimizer.step_count,
-                horizon_steps=estimated_steps,
-                start_softness=start_softness,
-                end_softness=end_softness,
-            )
-            _refresh_optimizer_canvas(optimizer, softness=current_softness)
-
-    effective_schedule = list(batch_schedule)
-    if optimizer.polygons.count == batch_schedule[0] and effective_schedule:
-        effective_schedule = effective_schedule[1:]
-
-    for cycle_index, batch_size in enumerate(effective_schedule):
+    for cycle_index, batch_size in enumerate(batch_schedule):
         if batch_size <= 0:
             continue
 
@@ -531,15 +464,18 @@ def progressive_growth(
         best_cycle_loss = loss_before_cycle
         best_polygons = optimizer.polygons.copy()
 
-        pre_steps, converged = optimize_until_converged(
-            optimizer,
-            max_steps=max_steps_per_cycle,
-            convergence_window=convergence_window,
-            convergence_rel_threshold=convergence_rel_threshold,
-            start_softness=start_softness,
-            end_softness=end_softness,
-            softness_horizon=estimated_steps,
-        )
+        if optimizer.polygons.count == 0:
+            pre_steps, converged = 0, True
+        else:
+            pre_steps, converged = optimize_until_converged(
+                optimizer,
+                max_steps=max_steps_per_cycle,
+                convergence_window=convergence_window,
+                convergence_rel_threshold=convergence_rel_threshold,
+                start_softness=start_softness,
+                end_softness=end_softness,
+                softness_horizon=estimated_steps,
+            )
 
         loss_before_add = float(optimizer.loss_history[-1])
 
@@ -698,6 +634,7 @@ def _scale_polygons_to_resolution(
     colors = np.array(polygons.colors, copy=True)
     alphas = np.array(polygons.alphas, copy=True)
     shape_types = np.array(polygons.shape_types, copy=True)
+    shape_params = np.array(polygons.shape_params, copy=True)
 
     centers *= scale
     centers[:, 0] = np.clip(centers[:, 0], 0.0, new_resolution - 1.0)
@@ -711,6 +648,7 @@ def _scale_polygons_to_resolution(
         colors=colors,
         alphas=alphas,
         shape_types=shape_types,
+        shape_params=shape_params,
     )
 
 
@@ -732,12 +670,12 @@ def run_multi_resolution_schedule(
     rng = np.random.default_rng(random_seed)
 
     rounds = [
-        ("round-1-50", 50, [20, 20, 20], (2.5, 12.5)),
-        ("round-2-100", 100, [20, 20, 20, 20], (3.0, 14.0)),
-        ("round-3-200", 200, [20, 20, 20, 20, 20], (2.0, 10.0)),
+        ("round-1-50", 50, [20, 20, 20], (5.0, 25.0)),
+        ("round-2-100", 100, [20, 20, 20, 20], (10.0, 50.0)),
+        ("round-3-200", 200, [20, 20, 20, 20, 20], (4.0, 20.0)),
     ]
     if include_round4:
-        rounds.append(("round-4-detail", 200, [20] * 10, (1.5, 4.0)))
+        rounds.append(("round-4-detail", 200, [20] * 10, (4.0, 8.0)))
 
     previous_resolution = None
     polygons: LivePolygonBatch | None = None

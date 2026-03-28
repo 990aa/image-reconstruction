@@ -1,0 +1,143 @@
+import numpy as np
+
+from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
+from src.live_renderer import SoftRasterizer
+from src.live_schedule import (
+    apply_low_frequency_color_correction,
+    decompose_residual,
+    make_random_live_batch_with_bounds,
+    progressive_growth,
+)
+
+
+def _hybrid_target(size: int = 64) -> np.ndarray:
+    yy, xx = np.meshgrid(np.linspace(0.0, 1.0, size), np.linspace(0.0, 1.0, size), indexing="ij")
+    smooth = np.stack(
+        [
+            0.3 + 0.5 * xx,
+            0.2 + 0.4 * yy,
+            0.4 + 0.25 * (1.0 - xx),
+        ],
+        axis=2,
+    ).astype(np.float32)
+
+    checker = (((np.arange(size)[:, None] // 4) + (np.arange(size)[None, :] // 4)) % 2).astype(np.float32)
+    hf = np.zeros_like(smooth)
+    hf[..., 0] = 0.08 * (checker - 0.5)
+    hf[..., 1] = 0.06 * (0.5 - checker)
+    hf[..., 2] = 0.05 * (checker - 0.5)
+
+    target = np.clip(smooth + hf, 0.0, 1.0)
+    return target.astype(np.float32, copy=False)
+
+
+def _make_partial_optimizer(target: np.ndarray) -> LiveJointOptimizer:
+    h, w = target.shape[:2]
+    config = LiveOptimizerConfig(
+        color_lr=0.05,
+        position_lr=0.002,
+        size_lr=0.001,
+        alpha_lr=0.02,
+        render_chunk_size=50,
+        position_update_interval=8,
+        size_update_interval=12,
+        max_fd_polygons=8,
+    )
+
+    polygons = make_random_live_batch_with_bounds(
+        count=30,
+        height=h,
+        width=w,
+        min_size=3.0,
+        max_size=12.0,
+        rng=np.random.default_rng(11),
+    )
+
+    optimizer = LiveJointOptimizer(
+        target_image=target,
+        rasterizer=SoftRasterizer(height=h, width=w),
+        polygons=polygons,
+        config=config,
+    )
+    optimizer.run(40, start_softness=2.0, end_softness=0.6)
+    return optimizer
+
+
+def test_phase6_residual_decomposition_and_targeting() -> None:
+    target = _hybrid_target(64)
+    optimizer = _make_partial_optimizer(target)
+
+    before = float(optimizer.loss_history[-1])
+    gain = apply_low_frequency_color_correction(
+        optimizer,
+        sigma=10.0,
+        strength=0.7,
+        softness=0.6,
+    )
+    after = float(optimizer.loss_history[-1])
+
+    assert gain > 0.0
+    assert after <= before * 0.98
+
+    comp = decompose_residual(target, optimizer.current_canvas, sigma=10.0)
+    mean_high = float(np.mean(comp.high_frequency, dtype=np.float32))
+    assert abs(mean_high) < 1e-3
+
+    base_polygons = optimizer.polygons.copy()
+    config = optimizer.config
+
+    raw_optimizer = LiveJointOptimizer(
+        target_image=target,
+        rasterizer=SoftRasterizer(height=64, width=64),
+        polygons=base_polygons.copy(),
+        config=config,
+    )
+    raw_start = float(raw_optimizer.loss_history[-1])
+    progressive_growth(
+        raw_optimizer,
+        batch_schedule=[10],
+        max_steps_per_cycle=20,
+        post_add_steps=5,
+        convergence_window=50,
+        convergence_rel_threshold=0.001,
+        region_window=5,
+        new_polygon_alpha=0.60,
+        min_new_size=3.0,
+        max_new_size=10.0,
+        use_content_aware_shapes=True,
+        use_high_frequency_targeting=False,
+        residual_sigma=10.0,
+        low_frequency_correction_strength=0.0,
+        start_softness=1.2,
+        end_softness=0.6,
+    )
+    raw_drop = raw_start - float(raw_optimizer.loss_history[-1])
+
+    hf_optimizer = LiveJointOptimizer(
+        target_image=target,
+        rasterizer=SoftRasterizer(height=64, width=64),
+        polygons=base_polygons.copy(),
+        config=config,
+    )
+    hf_start = float(hf_optimizer.loss_history[-1])
+    progressive_growth(
+        hf_optimizer,
+        batch_schedule=[10],
+        max_steps_per_cycle=20,
+        post_add_steps=5,
+        convergence_window=50,
+        convergence_rel_threshold=0.001,
+        region_window=5,
+        new_polygon_alpha=0.60,
+        min_new_size=3.0,
+        max_new_size=10.0,
+        use_content_aware_shapes=True,
+        use_high_frequency_targeting=True,
+        residual_sigma=10.0,
+        low_frequency_correction_strength=0.0,
+        start_softness=1.2,
+        end_softness=0.6,
+    )
+    hf_drop = hf_start - float(hf_optimizer.loss_history[-1])
+
+    assert hf_drop > raw_drop

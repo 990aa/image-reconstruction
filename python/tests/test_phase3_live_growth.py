@@ -13,7 +13,7 @@ from src.live_schedule import (
 
 
 def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
-    target = load_square_target(Path("targets/internet_portrait.jpg"), resolution=50)
+    target = load_square_target(Path("targets/grape.jpg"), resolution=50)
 
     config = LiveOptimizerConfig(
         color_lr=0.05,
@@ -21,8 +21,9 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
         size_lr=0.0008,
         alpha_lr=0.02,
         render_chunk_size=50,
-        position_update_interval=3,
-        size_update_interval=5,
+        position_update_interval=6,
+        size_update_interval=10,
+        max_fd_polygons=10,
     )
 
     progressive_optimizer = LiveJointOptimizer(
@@ -35,14 +36,17 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
     cycle_results, growth_events = progressive_growth(
         progressive_optimizer,
         batch_schedule=[20, 20, 20, 20, 20],
-        max_steps_per_cycle=110,
-        post_add_steps=14,
+        max_steps_per_cycle=70,
+        post_add_steps=10,
         convergence_window=100,
         convergence_rel_threshold=0.001,
         region_window=5,
         new_polygon_alpha=0.60,
         min_new_size=2.5,
         max_new_size=8.0,
+        use_content_aware_shapes=True,
+        use_high_frequency_targeting=True,
+        residual_sigma=10.0,
         start_softness=2.0,
         end_softness=0.5,
     )
