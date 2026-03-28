@@ -10,3 +10,8 @@ dependencies = [
     "scikit-image>=0.26.0",
     "scipy>=1.17.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
