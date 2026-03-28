@@ -62,6 +62,16 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
         assert event.distance_to_target <= 20.0
 
     total_steps = int(sum(c.optimization_steps for c in cycle_results))
+    baseline_config = LiveOptimizerConfig(
+        color_lr=0.01,
+        position_lr=config.position_lr,
+        size_lr=config.size_lr,
+        alpha_lr=0.0,
+        render_chunk_size=config.render_chunk_size,
+        position_update_interval=1000,
+        size_update_interval=1000,
+        max_fd_polygons=0,
+    )
     baseline_optimizer = LiveJointOptimizer(
         target_image=target,
         rasterizer=SoftRasterizer(height=50, width=50),
@@ -73,7 +83,7 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
             max_size=8.0,
             rng=np.random.default_rng(123),
         ),
-        config=config,
+        config=baseline_config,
     )
     baseline_optimizer.run(total_steps, start_softness=2.0, end_softness=0.5)
 
