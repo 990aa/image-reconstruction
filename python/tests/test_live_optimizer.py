@@ -35,7 +35,6 @@ def test_joint_optimizer_color_and_position_converge_on_simple_rectangle() -> No
         rasterizer=rasterizer,
         polygons=polygons,
         config=LiveOptimizerConfig(
-            color_lr=0.08,
             color_lr=0.03,
             position_lr=0.03,
             size_lr=0.002,
