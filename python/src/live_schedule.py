@@ -503,7 +503,7 @@ def progressive_growth(
             )
             alpha_for_add = float(
                 np.clip(
-                    new_polygon_alpha * (0.55 if use_high_frequency_targeting else 1.0),
+                    new_polygon_alpha * (0.35 if use_high_frequency_targeting else 1.0),
                     0.0,
                     1.0,
                 )
