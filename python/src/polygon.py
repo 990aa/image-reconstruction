@@ -22,7 +22,9 @@ class Polygon:
     ellipse_rotation: float = 0.0
 
 
-def sample_center(probability_map: np.ndarray, rng: np.random.Generator) -> tuple[int, int]:
+def sample_center(
+    probability_map: np.ndarray, rng: np.random.Generator
+) -> tuple[int, int]:
     """Sample a center point from a normalized 2D probability map."""
     h, w = probability_map.shape
     flat = probability_map.ravel().astype(np.float64, copy=False)
@@ -37,10 +39,17 @@ def sample_center(probability_map: np.ndarray, rng: np.random.Generator) -> tupl
     return x, y
 
 
-def _clamp_vertices(vertices: Sequence[tuple[float, float]], width: int, height: int) -> list[tuple[int, int]]:
+def _clamp_vertices(
+    vertices: Sequence[tuple[float, float]], width: int, height: int
+) -> list[tuple[int, int]]:
     out: list[tuple[int, int]] = []
     for x, y in vertices:
-        out.append((int(np.clip(round(x), 0, width - 1)), int(np.clip(round(y), 0, height - 1))))
+        out.append(
+            (
+                int(np.clip(round(x), 0, width - 1)),
+                int(np.clip(round(y), 0, height - 1)),
+            )
+        )
     return out
 
 
@@ -97,14 +106,20 @@ def generate_shape(
             raw_vertices.append((x, y))
 
         if shape_type == ShapeType.QUADRILATERAL:
-            raw_vertices.sort(key=lambda p: np.arctan2(p[1] - center_y, p[0] - center_x))
+            raw_vertices.sort(
+                key=lambda p: np.arctan2(p[1] - center_y, p[0] - center_x)
+            )
 
         vertices = _clamp_vertices(raw_vertices, w, h)
         xs = [v[0] for v in vertices]
         ys = [v[1] for v in vertices]
-        color = _sample_color_from_bbox(target_image, min(xs), min(ys), max(xs), max(ys), rng)
+        color = _sample_color_from_bbox(
+            target_image, min(xs), min(ys), max(xs), max(ys), rng
+        )
 
-        return Polygon(vertices=vertices, color=color, alpha=alpha, shape_type=shape_type)
+        return Polygon(
+            vertices=vertices, color=color, alpha=alpha, shape_type=shape_type
+        )
 
     if shape_type == ShapeType.ELLIPSE:
         semi_major = int(max(2, round(rng.uniform(0.4 * size, size))))

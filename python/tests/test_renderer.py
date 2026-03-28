@@ -16,8 +16,12 @@ def test_triangle_render_changes_center_and_not_corner() -> None:
 
     rendered = render_polygon(canvas, triangle)
 
-    assert np.allclose(rendered[50, 50], np.array([1.0, 0.0, 0.0], dtype=np.float32), atol=1e-6)
-    assert np.allclose(rendered[5, 5], np.array([1.0, 1.0, 1.0], dtype=np.float32), atol=1e-6)
+    assert np.allclose(
+        rendered[50, 50], np.array([1.0, 0.0, 0.0], dtype=np.float32), atol=1e-6
+    )
+    assert np.allclose(
+        rendered[5, 5], np.array([1.0, 1.0, 1.0], dtype=np.float32), atol=1e-6
+    )
 
 
 def test_ellipse_render_changes_center_and_not_corner() -> None:
@@ -34,5 +38,9 @@ def test_ellipse_render_changes_center_and_not_corner() -> None:
 
     rendered = render_polygon(canvas, ellipse)
 
-    assert np.allclose(rendered[50, 50], np.array([0.0, 0.0, 1.0], dtype=np.float32), atol=1e-6)
-    assert np.allclose(rendered[5, 5], np.array([1.0, 1.0, 1.0], dtype=np.float32), atol=1e-6)
+    assert np.allclose(
+        rendered[50, 50], np.array([0.0, 0.0, 1.0], dtype=np.float32), atol=1e-6
+    )
+    assert np.allclose(
+        rendered[5, 5], np.array([1.0, 1.0, 1.0], dtype=np.float32), atol=1e-6
+    )

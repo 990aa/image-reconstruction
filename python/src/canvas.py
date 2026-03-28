@@ -5,7 +5,9 @@ DEFAULT_WIDTH = 100
 DEFAULT_HEIGHT = 100
 
 
-def create_white_canvas(width: int = DEFAULT_WIDTH, height: int = DEFAULT_HEIGHT) -> np.ndarray:
+def create_white_canvas(
+    width: int = DEFAULT_WIDTH, height: int = DEFAULT_HEIGHT
+) -> np.ndarray:
     """Create a white float32 canvas with RGB channels."""
     return np.ones((height, width, 3), dtype=np.float32)
 
