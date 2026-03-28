@@ -594,18 +594,38 @@ def progressive_growth(
 
             if not accepted and best_candidate is not None:
                 placed_xy, best_color, sx, sy, selected_shape, rotation, params, _ = best_candidate
+                px = int(np.clip(round(placed_xy[0]), 0, optimizer.rasterizer.width - 1))
+                py = int(np.clip(round(placed_xy[1]), 0, optimizer.rasterizer.height - 1))
+                neutral_color = tuple(float(v) for v in optimizer.current_canvas[py, px])
+
                 optimizer.add_polygon(
                     center_x=placed_xy[0],
                     center_y=placed_xy[1],
                     size_x=sx,
                     size_y=sy,
-                    color=best_color,
+                    color=neutral_color,
                     alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
                     shape_type=selected_shape,
                     rotation=rotation,
                     shape_params=params,
                 )
-                _refresh_optimizer_canvas(optimizer, softness=current_softness)
+                neutral_loss = _refresh_optimizer_canvas(optimizer, softness=current_softness)
+
+                if neutral_loss > base_loss:
+                    optimizer.remove_last_polygon(softness=current_softness, record_loss=False)
+                    optimizer.add_polygon(
+                        center_x=placed_xy[0],
+                        center_y=placed_xy[1],
+                        size_x=sx,
+                        size_y=sy,
+                        color=best_color,
+                        alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
+                        shape_type=selected_shape,
+                        rotation=rotation,
+                        shape_params=params,
+                    )
+                    _refresh_optimizer_canvas(optimizer, softness=current_softness)
+
                 target_center_used = placed_xy
 
             if optimizer.loss_history[-1] < best_cycle_loss:
@@ -773,9 +793,9 @@ def run_multi_resolution_schedule(
             cfg,
             min_size=size_bounds[0],
             max_size=size_bounds[1],
-            max_fd_polygons=12,
-            position_update_interval=max(cfg.position_update_interval, 6),
-            size_update_interval=max(cfg.size_update_interval, 10),
+            max_fd_polygons=cfg.max_fd_polygons,
+            position_update_interval=cfg.position_update_interval,
+            size_update_interval=cfg.size_update_interval,
         )
 
         optimizer = LiveJointOptimizer(

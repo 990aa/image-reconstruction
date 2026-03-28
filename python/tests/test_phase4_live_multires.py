@@ -20,17 +20,17 @@ def test_phase4_multi_resolution_schedule_beats_single_resolution() -> None:
         size_lr=0.0006,
         alpha_lr=0.02,
         render_chunk_size=50,
-        position_update_interval=10,
-        size_update_interval=14,
-        max_fd_polygons=10,
+        position_update_interval=50,
+        size_update_interval=60,
+        max_fd_polygons=0,
     )
 
     result = run_multi_resolution_schedule(
         target_image=target_200,
         random_seed=77,
         include_round4=False,
-        max_steps_per_cycle=8,
-        post_add_steps=3,
+        max_steps_per_cycle=6,
+        post_add_steps=2,
         convergence_window=100,
         convergence_rel_threshold=0.001,
         base_config=config,

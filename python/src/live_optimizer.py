@@ -229,7 +229,9 @@ class LiveJointOptimizer:
 
         eps_pos = float(self.config.position_eps_px)
 
-        if self.config.max_fd_polygons is None or self.config.max_fd_polygons <= 0:
+        if self.config.max_fd_polygons is not None and self.config.max_fd_polygons <= 0:
+            return pos_grad, size_grad
+        if self.config.max_fd_polygons is None:
             update_indices = np.arange(n, dtype=np.int32)
         elif n <= self.config.max_fd_polygons:
             update_indices = np.arange(n, dtype=np.int32)
