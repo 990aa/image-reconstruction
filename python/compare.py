@@ -168,7 +168,7 @@ def main() -> int:
         seed=args.seed,
     )
 
-    fig = plt.figure(figsize=(16, 6.5))
+    fig = plt.figure(figsize=(16, 6.5), constrained_layout=True)
     gs = fig.add_gridspec(2, 3, height_ratios=[2.0, 1.0], hspace=0.28, wspace=0.25)
 
     ax_target = fig.add_subplot(gs[0, 0])
@@ -200,8 +200,6 @@ def main() -> int:
     ax_curve.set_title("Naive vs Improved Optimization")
     ax_curve.grid(True, alpha=0.25)
     ax_curve.legend(loc="upper right")
-
-    fig.tight_layout()
 
     out_path = (
         args.output
