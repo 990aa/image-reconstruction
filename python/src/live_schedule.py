@@ -447,6 +447,7 @@ def progressive_growth(
     use_high_frequency_targeting: bool = False,
     residual_sigma: float = 10.0,
     low_frequency_correction_strength: float = 0.35,
+    max_add_attempts: int = 10,
     start_softness: float = 2.0,
     end_softness: float = 0.5,
 ) -> tuple[list[GrowthCycleResult], list[GrowthEvent]]:
@@ -480,66 +481,132 @@ def progressive_growth(
         loss_before_add = float(optimizer.loss_history[-1])
 
         for _ in range(int(batch_size)):
-            target_map = (
-                high_frequency_error_map(optimizer.target, optimizer.current_canvas, sigma=residual_sigma)
-                if use_high_frequency_targeting
-                else None
-            )
-            target_center, _, patch_color = highest_error_region_center(
-                optimizer.target,
-                optimizer.current_canvas,
-                window=region_window,
-                guide_map=target_map,
-            )
-
-            target_size = float(region_window)
-            sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
-            sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
-
-            cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
-            cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
-
-            selected_shape = (
-                _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
-                if use_content_aware_shapes
-                else shape_type
-            )
-            rotation, params = _initialize_shape_params(
-                shape_type=selected_shape,
-                center_x=float(cx_i),
-                center_y=float(cy_i),
-                size_x=sx,
-                size_y=sy,
-                angle_map=angle_map,
-                x0=0,
-                y0=0,
-                x1=0,
-                y1=0,
-            )
-
-            optimizer.add_polygon(
-                center_x=float(cx_i),
-                center_y=float(cy_i),
-                size_x=sx,
-                size_y=sy,
-                color=(
-                    float(np.clip(patch_color[0], 0.0, 1.0)),
-                    float(np.clip(patch_color[1], 0.0, 1.0)),
-                    float(np.clip(patch_color[2], 0.0, 1.0)),
-                ),
-                alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
-                shape_type=selected_shape,
-                rotation=rotation,
-                shape_params=params,
-            )
-
             current_softness = _softness_for_step(
                 step_index=optimizer.step_count,
                 horizon_steps=estimated_steps,
                 start_softness=start_softness,
                 end_softness=end_softness,
             )
-            _refresh_optimizer_canvas(optimizer, softness=current_softness)
+
+            base_loss = float(optimizer.loss_history[-1])
+            if use_high_frequency_targeting:
+                attempt_map = high_frequency_error_map(
+                    optimizer.target,
+                    optimizer.current_canvas,
+                    sigma=residual_sigma,
+                )
+            else:
+                attempt_map = np.sum(
+                    (optimizer.target - optimizer.current_canvas) ** 2,
+                    axis=2,
+                    dtype=np.float32,
+                )
+
+            best_candidate: tuple[
+                tuple[float, float],
+                tuple[float, float, float],
+                float,
+                float,
+                int,
+                float,
+                np.ndarray,
+                float,
+            ] | None = None
+
+            accepted = False
+            target_center_used = (0.0, 0.0)
+            for _attempt in range(max(1, max_add_attempts)):
+                target_center, region_box, patch_color = highest_error_region_center(
+                    optimizer.target,
+                    optimizer.current_canvas,
+                    window=region_window,
+                    guide_map=attempt_map,
+                )
+
+                target_size = float(region_window)
+                sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
+                sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
+
+                cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
+                cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
+
+                selected_shape = (
+                    _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
+                    if use_content_aware_shapes
+                    else shape_type
+                )
+                rotation, params = _initialize_shape_params(
+                    shape_type=selected_shape,
+                    center_x=float(cx_i),
+                    center_y=float(cy_i),
+                    size_x=sx,
+                    size_y=sy,
+                    angle_map=angle_map,
+                    x0=region_box[0],
+                    y0=region_box[1],
+                    x1=region_box[2],
+                    y1=region_box[3],
+                )
+
+                optimizer.add_polygon(
+                    center_x=float(cx_i),
+                    center_y=float(cy_i),
+                    size_x=sx,
+                    size_y=sy,
+                    color=(
+                        float(np.clip(patch_color[0], 0.0, 1.0)),
+                        float(np.clip(patch_color[1], 0.0, 1.0)),
+                        float(np.clip(patch_color[2], 0.0, 1.0)),
+                    ),
+                    alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
+                    shape_type=selected_shape,
+                    rotation=rotation,
+                    shape_params=params,
+                )
+                new_loss = _refresh_optimizer_canvas(optimizer, softness=current_softness)
+
+                candidate = (
+                    (float(cx_i), float(cy_i)),
+                    (
+                        float(np.clip(patch_color[0], 0.0, 1.0)),
+                        float(np.clip(patch_color[1], 0.0, 1.0)),
+                        float(np.clip(patch_color[2], 0.0, 1.0)),
+                    ),
+                    sx,
+                    sy,
+                    selected_shape,
+                    float(rotation),
+                    np.array(params, copy=True),
+                    float(new_loss),
+                )
+                if best_candidate is None or new_loss < best_candidate[-1]:
+                    best_candidate = candidate
+
+                if new_loss <= base_loss:
+                    accepted = True
+                    target_center_used = target_center
+                    break
+
+                optimizer.remove_last_polygon(softness=current_softness, record_loss=False)
+
+                x0, y0, x1, y1 = region_box
+                attempt_map[y0:y1, x0:x1] = 0.0
+
+            if not accepted and best_candidate is not None:
+                placed_xy, best_color, sx, sy, selected_shape, rotation, params, _ = best_candidate
+                optimizer.add_polygon(
+                    center_x=placed_xy[0],
+                    center_y=placed_xy[1],
+                    size_x=sx,
+                    size_y=sy,
+                    color=best_color,
+                    alpha=float(np.clip(new_polygon_alpha, 0.0, 1.0)),
+                    shape_type=selected_shape,
+                    rotation=rotation,
+                    shape_params=params,
+                )
+                _refresh_optimizer_canvas(optimizer, softness=current_softness)
+                target_center_used = placed_xy
 
             if optimizer.loss_history[-1] < best_cycle_loss:
                 best_cycle_loss = float(optimizer.loss_history[-1])
@@ -548,14 +615,14 @@ def progressive_growth(
             placed = optimizer.polygons.centers[-1]
             distance = float(
                 np.hypot(
-                    float(placed[0]) - target_center[0],
-                    float(placed[1]) - target_center[1],
+                    float(placed[0]) - float(target_center_used[0]),
+                    float(placed[1]) - float(target_center_used[1]),
                 )
             )
             events.append(
                 GrowthEvent(
                     cycle_index=cycle_index,
-                    target_region_center=target_center,
+                    target_region_center=(float(target_center_used[0]), float(target_center_used[1])),
                     placed_center=(float(placed[0]), float(placed[1])),
                     distance_to_target=distance,
                 )
@@ -584,11 +651,11 @@ def progressive_growth(
         )
 
         if float(optimizer.loss_history[-1]) >= loss_before_cycle and best_cycle_loss < loss_before_cycle:
-            optimizer.polygons = best_polygons
-            _refresh_optimizer_canvas(optimizer, softness=end_softness)
+            optimizer.set_polygons(best_polygons.copy(), softness=end_softness, record_loss=True)
 
         recovery_steps = 0
-        while float(optimizer.loss_history[-1]) >= loss_before_cycle and recovery_steps < max(20, post_add_steps * 2):
+        recovery_budget = max(60, post_add_steps * 8)
+        while float(optimizer.loss_history[-1]) >= loss_before_cycle and recovery_steps < recovery_budget:
             optimizer.step(softness=end_softness)
             recovery_steps += 1
 
@@ -599,7 +666,7 @@ def progressive_growth(
                 loss_before_cycle=loss_before_cycle,
                 loss_before_addition=loss_before_add,
                 loss_after_cycle=float(optimizer.loss_history[-1]),
-                optimization_steps=int(pre_steps + post_steps),
+                optimization_steps=int(pre_steps + post_steps + recovery_steps),
                 converged_before_addition=bool(converged),
             )
         )
