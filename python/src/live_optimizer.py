@@ -83,10 +83,7 @@ class LiveJointOptimizer:
         self.polygons = polygons
         self.config = LiveOptimizerConfig() if config is None else config
 
-        self._color_adam = _AdamState(self.polygons.colors.shape)
-        self._position_adam = _AdamState(self.polygons.centers.shape)
-        self._size_adam = _AdamState(self.polygons.sizes.shape)
-        self._alpha_adam = _AdamState(self.polygons.alphas.shape)
+        self._reset_adam_states()
 
         self.step_count = 0
         initial = self.rasterizer.render(
@@ -96,6 +93,45 @@ class LiveJointOptimizer:
         )
         self.current_canvas = initial.canvas
         self.loss_history: list[float] = [self._loss(self.current_canvas, self.target)]
+
+    def _reset_adam_states(self) -> None:
+        self._color_adam = _AdamState(self.polygons.colors.shape)
+        self._position_adam = _AdamState(self.polygons.centers.shape)
+        self._size_adam = _AdamState(self.polygons.sizes.shape)
+        self._alpha_adam = _AdamState(self.polygons.alphas.shape)
+
+    def set_polygons(
+        self,
+        polygons: LivePolygonBatch,
+        *,
+        softness: float = 0.5,
+        record_loss: bool = True,
+    ) -> None:
+        self.polygons = polygons
+        self._reset_adam_states()
+        render = self.rasterizer.render(
+            self.polygons,
+            softness=float(softness),
+            chunk_size=self.config.render_chunk_size,
+        )
+        self.current_canvas = render.canvas
+        if record_loss:
+            self.loss_history.append(self._loss(self.current_canvas, self.target))
+
+    def remove_last_polygon(self, *, softness: float = 0.5, record_loss: bool = True) -> None:
+        if self.polygons.count == 0:
+            return
+        keep = self.polygons.count - 1
+        trimmed = LivePolygonBatch(
+            centers=np.array(self.polygons.centers[:keep], copy=True),
+            sizes=np.array(self.polygons.sizes[:keep], copy=True),
+            rotations=np.array(self.polygons.rotations[:keep], copy=True),
+            colors=np.array(self.polygons.colors[:keep], copy=True),
+            alphas=np.array(self.polygons.alphas[:keep], copy=True),
+            shape_types=np.array(self.polygons.shape_types[:keep], copy=True),
+            shape_params=np.array(self.polygons.shape_params[:keep], copy=True),
+        )
+        self.set_polygons(trimmed, softness=softness, record_loss=record_loss)
 
     @staticmethod
     def _loss(canvas: np.ndarray, target: np.ndarray | None = None) -> float:
@@ -527,10 +563,7 @@ class LiveJointOptimizer:
             axis=0,
         )
 
-        self._color_adam = _AdamState(self.polygons.colors.shape)
-        self._position_adam = _AdamState(self.polygons.centers.shape)
-        self._size_adam = _AdamState(self.polygons.sizes.shape)
-        self._alpha_adam = _AdamState(self.polygons.alphas.shape)
+        self._reset_adam_states()
 
     def run_with_growth(
         self,
