@@ -841,6 +841,7 @@ def run_multi_resolution_schedule(
     convergence_window: int = 100,
     convergence_rel_threshold: float = 0.001,
     base_config: LiveOptimizerConfig | None = None,
+    round_definitions: list[tuple[str, int, list[int], tuple[float, float]]] | None = None,
 ) -> MultiResolutionResult:
     if target_image.ndim != 3 or target_image.shape[2] != 3:
         raise ValueError("target_image must have shape (H, W, 3)")
@@ -848,13 +849,16 @@ def run_multi_resolution_schedule(
     cfg = LiveOptimizerConfig() if base_config is None else base_config
     rng = np.random.default_rng(random_seed)
 
-    rounds = [
-        ("round-1-50", 50, [20, 20, 20], (5.0, 25.0)),
-        ("round-2-100", 100, [20, 20, 20, 20], (10.0, 50.0)),
-        ("round-3-200", 200, [20, 20, 20, 20, 20], (4.0, 20.0)),
-    ]
-    if include_round4:
-        rounds.append(("round-4-detail", 200, [20] * 10, (4.0, 8.0)))
+    if round_definitions is None:
+        rounds = [
+            ("round-1-50", 50, [20, 20, 20], (5.0, 25.0)),
+            ("round-2-100", 100, [20, 20, 20, 20], (10.0, 50.0)),
+            ("round-3-200", 200, [20, 20, 20, 20, 20], (4.0, 20.0)),
+        ]
+        if include_round4:
+            rounds.append(("round-4-detail", 200, [20] * 10, (4.0, 8.0)))
+    else:
+        rounds = list(round_definitions)
 
     previous_resolution = None
     polygons: LivePolygonBatch | None = None

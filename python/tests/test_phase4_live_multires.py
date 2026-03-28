@@ -34,6 +34,11 @@ def test_phase4_multi_resolution_schedule_beats_single_resolution() -> None:
         convergence_window=100,
         convergence_rel_threshold=0.001,
         base_config=config,
+        round_definitions=[
+            ("round-1-50", 50, [8, 8], (5.0, 20.0)),
+            ("round-2-100", 100, [10, 10], (10.0, 36.0)),
+            ("round-3-200", 200, [12, 12], (4.0, 20.0)),
+        ],
     )
 
     assert len(result.rounds) == 3
