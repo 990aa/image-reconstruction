@@ -8,6 +8,11 @@ This project reconstructs small RGB target images (100x100) using an evolutionar
 
 The system is attention-guided: each proposal is sampled from a probability map derived from per-pixel error, so new shapes are preferentially proposed in poorly reconstructed regions.
 
+## Repository Structure
+- [python](python): Core algorithm, tests, demo runner, generated outputs.
+- [slides](slides): Reveal.js slide deck and PPTX generation scripts.
+- [docs](docs): Academic report and supporting figures.
+
 ## Core Python Pipeline
 Main implementation files:
 - [python/src/image_loader.py](python/src/image_loader.py): Loads and normalizes images to float32 [0,1].

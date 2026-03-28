@@ -1,0 +1,22 @@
+{
+  "name": "slides",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "copy:assets": "node scripts/copy-assets.mjs",
+    "pptx": "node scripts/generate-pptx.mjs",
+    "build": "npm run copy:assets && tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/reveal.js": "^5.2.2",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "reveal.js": "^6.0.0"
+  }
+}
