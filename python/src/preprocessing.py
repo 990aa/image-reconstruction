@@ -130,11 +130,15 @@ def compute_structure_map(target_rgb: np.ndarray) -> np.ndarray:
     return structure
 
 
-def compute_complexity_score(target_rgb: np.ndarray, structure_map: np.ndarray) -> float:
+def compute_complexity_score(
+    target_rgb: np.ndarray, structure_map: np.ndarray
+) -> float:
     mean_grad = float(np.mean(structure_map, dtype=np.float32))
     center = np.mean(target_rgb, axis=(0, 1), keepdims=True, dtype=np.float32)
     mean_abs_dev = float(
-        np.mean(np.abs(target_rgb.astype(np.float32, copy=False) - center), dtype=np.float32)
+        np.mean(
+            np.abs(target_rgb.astype(np.float32, copy=False) - center), dtype=np.float32
+        )
     )
 
     raw_ratio = mean_grad / max(mean_abs_dev, 1e-6)

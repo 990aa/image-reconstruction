@@ -59,7 +59,9 @@ def test_polygon_death_pass_reduces_count_with_small_mse_change() -> None:
     target[..., 1] = 0.40
     target[..., 2] = 0.80
 
-    optimizer = HillClimbingOptimizer(target_image=target, max_iterations=20, random_seed=9)
+    optimizer = HillClimbingOptimizer(
+        target_image=target, max_iterations=20, random_seed=9
+    )
 
     redundant: list[Polygon] = []
     for _ in range(18):
@@ -77,13 +79,19 @@ def test_polygon_death_pass_reduces_count_with_small_mse_change() -> None:
         )
 
     optimizer.accepted_polygons = list(redundant)
-    optimizer.canvas = render_polygons(optimizer.blank_canvas, optimizer.accepted_polygons)
-    optimizer.current_mse = optimizer._evaluate_multiscale_loss(optimizer.canvas, optimizer.iteration)
+    optimizer.canvas = render_polygons(
+        optimizer.blank_canvas, optimizer.accepted_polygons
+    )
+    optimizer.current_mse = optimizer._evaluate_multiscale_loss(
+        optimizer.canvas, optimizer.iteration
+    )
 
     before_count = optimizer.accepted_count
     before_mse = optimizer.current_mse
 
-    removed, added = optimizer.run_polygon_death_and_replacement(contribution_threshold=1e-4)
+    removed, added = optimizer.run_polygon_death_and_replacement(
+        contribution_threshold=1e-4
+    )
 
     after_count = optimizer.accepted_count
     after_mse = optimizer.current_mse

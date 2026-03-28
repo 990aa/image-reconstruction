@@ -179,7 +179,9 @@ def _generate_oriented_triangle(
     half_width = max(1.0, size * thin_factor)
 
     tip = np.array([center_x, center_y], dtype=np.float32) + major * length
-    base_center = np.array([center_x, center_y], dtype=np.float32) - major * (0.6 * length)
+    base_center = np.array([center_x, center_y], dtype=np.float32) - major * (
+        0.6 * length
+    )
     base_a = base_center + minor * half_width
     base_b = base_center - minor * half_width
 

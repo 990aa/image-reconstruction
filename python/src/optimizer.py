@@ -200,13 +200,19 @@ class HillClimbingOptimizer:
         self.canvas = np.array(self.blank_canvas, copy=True)
 
         self.target_pyramid = self._prepare_target_pyramid(target_pyramid)
-        self.target_pyramid_lab = [rgb_to_lab_image(level) for level in self.target_pyramid]
+        self.target_pyramid_lab = [
+            rgb_to_lab_image(level) for level in self.target_pyramid
+        ]
 
         self.structure_map = self._prepare_structure_map(structure_map)
         self.gradient_angle_map = self._prepare_angle_map(gradient_angle_map)
         self.segmentation_map = self._prepare_segmentation_map(segmentation_map)
-        self.cluster_centroids_lab = self._prepare_cluster_centroids(cluster_centroids_lab)
-        self.cluster_variances_lab = self._prepare_cluster_variances(cluster_variances_lab)
+        self.cluster_centroids_lab = self._prepare_cluster_centroids(
+            cluster_centroids_lab
+        )
+        self.cluster_variances_lab = self._prepare_cluster_variances(
+            cluster_variances_lab
+        )
 
         self.size_schedule = _validate_size_schedule(
             _default_size_schedule() if size_schedule is None else size_schedule
@@ -290,7 +296,9 @@ class HillClimbingOptimizer:
             resized = np.clip(resized, 0.0, 1.0).astype(np.float32, copy=False)
         return resized
 
-    def _prepare_structure_map(self, structure_map: np.ndarray | None) -> np.ndarray | None:
+    def _prepare_structure_map(
+        self, structure_map: np.ndarray | None
+    ) -> np.ndarray | None:
         if structure_map is None:
             return None
         if structure_map.ndim != 2:
@@ -308,7 +316,9 @@ class HillClimbingOptimizer:
             return self._resize_2d(angle_map, order=1, clip=False)
         return angle_map.astype(np.float32, copy=False)
 
-    def _prepare_segmentation_map(self, segmentation_map: np.ndarray | None) -> np.ndarray | None:
+    def _prepare_segmentation_map(
+        self, segmentation_map: np.ndarray | None
+    ) -> np.ndarray | None:
         if segmentation_map is None:
             return None
         if segmentation_map.ndim != 2:
@@ -406,7 +416,9 @@ class HillClimbingOptimizer:
         coarse_weight, fine_weight = self._loss_weights(iteration)
         return coarse_weight * coarse_mse + fine_weight * fine_mse
 
-    def _compute_guided_error_map(self, canvas: np.ndarray, iteration: int) -> np.ndarray:
+    def _compute_guided_error_map(
+        self, canvas: np.ndarray, iteration: int
+    ) -> np.ndarray:
         raw_error = per_pixel_perceptual_error_map(canvas, self.target)
         if self.structure_map is None:
             return raw_error
@@ -419,13 +431,17 @@ class HillClimbingOptimizer:
         return guided.astype(np.float32, copy=False)
 
     def _sample_center_from_error_distribution(self) -> tuple[int, int, int]:
-        processed_map = process_error_map(self.current_error_map, sigma=self.error_sigma)
+        processed_map = process_error_map(
+            self.current_error_map, sigma=self.error_sigma
+        )
         flat_error_map = processed_map.reshape(self.height * self.width)
         sampled_index = int(self.rng.choice(flat_error_map.size, p=flat_error_map))
         row, col = divmod(sampled_index, self.width)
         return sampled_index, row, col
 
-    def _shape_profile_and_orientation(self, row: int, col: int) -> tuple[ShapeType, str, float]:
+    def _shape_profile_and_orientation(
+        self, row: int, col: int
+    ) -> tuple[ShapeType, str, float]:
         phase = self.current_phase
         if self.structure_map is None:
             shape_type = SHAPE_CYCLE[self.iteration % len(SHAPE_CYCLE)]
@@ -496,7 +512,9 @@ class HillClimbingOptimizer:
         span = max(float(max(xs) - min(xs)), float(max(ys) - min(ys)))
         return max(2.0, span * 0.5)
 
-    def _split_polygon_candidate(self, polygon: Polygon) -> tuple[Polygon, Polygon] | None:
+    def _split_polygon_candidate(
+        self, polygon: Polygon
+    ) -> tuple[Polygon, Polygon] | None:
         cx, cy = polygon_center(polygon)
         if polygon.orientation is not None:
             axis = float(polygon.orientation)
@@ -606,14 +624,18 @@ class HillClimbingOptimizer:
         for idx in range(len(self.accepted_polygons)):
             without = self.accepted_polygons[:idx] + self.accepted_polygons[idx + 1 :]
             without_canvas = render_polygons(self.blank_canvas, without)
-            without_loss = self._evaluate_multiscale_loss(without_canvas, self.iteration)
+            without_loss = self._evaluate_multiscale_loss(
+                without_canvas, self.iteration
+            )
             delta = float(without_loss - full_loss)
             contributions.append((idx, delta))
 
         contributions.sort(key=lambda item: item[1])
         bottom_count = max(1, int(round(0.05 * len(self.accepted_polygons))))
 
-        candidate_indices = [idx for idx, delta in contributions if delta < contribution_threshold]
+        candidate_indices = [
+            idx for idx, delta in contributions if delta < contribution_threshold
+        ]
         if not candidate_indices:
             candidate_indices = [idx for idx, _ in contributions[:bottom_count]]
         else:
@@ -629,13 +651,18 @@ class HillClimbingOptimizer:
 
         self.canvas = render_polygons(self.blank_canvas, self.accepted_polygons)
         self.current_mse = self._evaluate_multiscale_loss(self.canvas, self.iteration)
-        self.current_error_map = self._compute_guided_error_map(self.canvas, self.iteration)
+        self.current_error_map = self._compute_guided_error_map(
+            self.canvas, self.iteration
+        )
 
         removed = before_count - len(self.accepted_polygons)
         added = 0
 
         for _ in range(removed):
-            if self.max_polygons is not None and self.accepted_count >= self.max_polygons:
+            if (
+                self.max_polygons is not None
+                and self.accepted_count >= self.max_polygons
+            ):
                 break
 
             accepted = self._attempt_single_candidate(allow_split=False)
@@ -666,7 +693,9 @@ class HillClimbingOptimizer:
         if allow_split and self.current_phase != "Coarse":
             split_children = self._split_polygon_candidate(candidate)
             if split_children is not None:
-                split_canvas = render_polygons(self.canvas, [split_children[0], split_children[1]])
+                split_canvas = render_polygons(
+                    self.canvas, [split_children[0], split_children[1]]
+                )
                 split_mse = self._evaluate_multiscale_loss(split_canvas, self.iteration)
                 if split_mse < accepted_mse:
                     accepted_polys = [split_children[0], split_children[1]]

@@ -44,7 +44,9 @@ def per_pixel_error_map(image_a: np.ndarray, image_b: np.ndarray) -> np.ndarray:
     return np.sum(np.square(diff), axis=2, dtype=np.float32)
 
 
-def per_pixel_perceptual_error_map(image_a: np.ndarray, image_b: np.ndarray) -> np.ndarray:
+def per_pixel_perceptual_error_map(
+    image_a: np.ndarray, image_b: np.ndarray
+) -> np.ndarray:
     """Compute per-pixel LAB-space squared error for perceptual guidance."""
     if image_a.shape != image_b.shape:
         raise ValueError("Input images must have identical shapes.")
