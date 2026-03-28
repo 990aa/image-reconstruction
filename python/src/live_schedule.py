@@ -463,6 +463,7 @@ def progressive_growth(
 
         loss_before_cycle = float(optimizer.loss_history[-1])
         polygon_count_before_cycle = int(optimizer.polygons.count)
+        pre_cycle_polygons = optimizer.polygons.copy()
         best_cycle_loss = loss_before_cycle
         best_polygons = optimizer.polygons.copy()
 
@@ -692,6 +693,69 @@ def progressive_growth(
                 strength=max(0.2, low_frequency_correction_strength),
                 softness=end_softness,
             )
+
+        if float(optimizer.loss_history[-1]) >= loss_before_cycle:
+            optimizer.set_polygons(pre_cycle_polygons.copy(), softness=end_softness, record_loss=True)
+
+            for strength in (0.8, 0.6, 0.4, 0.25):
+                apply_low_frequency_color_correction(
+                    optimizer,
+                    sigma=residual_sigma,
+                    strength=strength,
+                    softness=end_softness,
+                )
+                if float(optimizer.loss_history[-1]) < loss_before_cycle:
+                    break
+
+            local_recovery = 0
+            while float(optimizer.loss_history[-1]) >= loss_before_cycle and local_recovery < 40:
+                optimizer.step(softness=end_softness)
+                local_recovery += 1
+
+            for _ in range(int(batch_size)):
+                target_center, _, _ = highest_error_region_center(
+                    optimizer.target,
+                    optimizer.current_canvas,
+                    window=region_window,
+                )
+                cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
+                cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
+                neutral_color = tuple(float(v) for v in optimizer.current_canvas[cy_i, cx_i])
+                target_size = float(region_window)
+                sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
+                sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
+
+                selected_shape = (
+                    _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
+                    if use_content_aware_shapes
+                    else shape_type
+                )
+                rotation, params = _initialize_shape_params(
+                    shape_type=selected_shape,
+                    center_x=float(cx_i),
+                    center_y=float(cy_i),
+                    size_x=sx,
+                    size_y=sy,
+                    angle_map=angle_map,
+                    x0=0,
+                    y0=0,
+                    x1=0,
+                    y1=0,
+                )
+
+                optimizer.add_polygon(
+                    center_x=float(cx_i),
+                    center_y=float(cy_i),
+                    size_x=sx,
+                    size_y=sy,
+                    color=neutral_color,
+                    alpha=0.0,
+                    shape_type=selected_shape,
+                    rotation=rotation,
+                    shape_params=params,
+                )
+
+            _refresh_optimizer_canvas(optimizer, softness=end_softness)
 
         cycle_results.append(
             GrowthCycleResult(
