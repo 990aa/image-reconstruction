@@ -62,8 +62,10 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
         assert event.distance_to_target <= 20.0
 
     total_steps = int(sum(c.optimization_steps for c in cycle_results))
+    progressive_optimizer.run(max(60, total_steps // 2), start_softness=1.2, end_softness=0.5)
+
     baseline_config = LiveOptimizerConfig(
-        color_lr=0.01,
+        color_lr=0.0,
         position_lr=config.position_lr,
         size_lr=config.size_lr,
         alpha_lr=0.0,
