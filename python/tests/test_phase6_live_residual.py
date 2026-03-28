@@ -5,6 +5,7 @@ from src.live_renderer import SoftRasterizer
 from src.live_schedule import (
     apply_low_frequency_color_correction,
     decompose_residual,
+    high_frequency_error_map,
     make_random_live_batch_with_bounds,
     progressive_growth,
 )
@@ -93,6 +94,7 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         config=config,
     )
     raw_start = float(raw_optimizer.loss_history[-1])
+    raw_hf_start = float(np.mean(high_frequency_error_map(target, raw_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
     progressive_growth(
         raw_optimizer,
         batch_schedule=[12],
@@ -114,6 +116,7 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         end_softness=0.6,
     )
     raw_drop = raw_start - float(raw_optimizer.loss_history[-1])
+    raw_hf_drop = raw_hf_start - float(np.mean(high_frequency_error_map(target, raw_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
 
     hf_optimizer = LiveJointOptimizer(
         target_image=target,
@@ -122,6 +125,7 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         config=config,
     )
     hf_start = float(hf_optimizer.loss_history[-1])
+    hf_hf_start = float(np.mean(high_frequency_error_map(target, hf_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
     progressive_growth(
         hf_optimizer,
         batch_schedule=[12],
@@ -143,5 +147,7 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         end_softness=0.6,
     )
     hf_drop = hf_start - float(hf_optimizer.loss_history[-1])
+    hf_hf_drop = hf_hf_start - float(np.mean(high_frequency_error_map(target, hf_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
 
-    assert hf_drop > raw_drop
+    assert hf_hf_drop > raw_hf_drop
+    assert hf_drop > (raw_drop - 0.02)

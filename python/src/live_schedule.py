@@ -195,7 +195,10 @@ def high_frequency_error_map(
     sigma: float = 10.0,
 ) -> np.ndarray:
     comp = decompose_residual(target, canvas, sigma=sigma)
-    return np.sum(comp.high_frequency * comp.high_frequency, axis=2, dtype=np.float32)
+    magnitude = np.sqrt(np.sum(comp.high_frequency * comp.high_frequency, axis=2) + 1e-8)
+    threshold = float(np.quantile(magnitude, 0.60))
+    focused = np.clip(magnitude - threshold, 0.0, None).astype(np.float32, copy=False)
+    return gaussian_filter(focused, sigma=1.0, mode="reflect").astype(np.float32, copy=False)
 
 
 def apply_low_frequency_color_correction(
