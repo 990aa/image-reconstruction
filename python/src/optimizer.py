@@ -23,7 +23,9 @@ SHAPE_CYCLE: tuple[ShapeType, ShapeType, ShapeType] = (
 def phase_transition_iterations(max_iterations: int) -> tuple[int, int]:
     if max_iterations <= 0:
         raise ValueError("max_iterations must be positive.")
-    return int(max_iterations * PHASE_COARSE_END), int(max_iterations * PHASE_STRUCTURAL_END)
+    return int(max_iterations * PHASE_COARSE_END), int(
+        max_iterations * PHASE_STRUCTURAL_END
+    )
 
 
 def get_phase_name(iteration: int, max_iterations: int) -> str:
@@ -53,7 +55,9 @@ def get_current_size(iteration: int, max_iterations: int) -> float:
         return _linear(30.0, 15.0, local_t)
 
     if progress < PHASE_STRUCTURAL_END:
-        local_t = (progress - PHASE_COARSE_END) / (PHASE_STRUCTURAL_END - PHASE_COARSE_END)
+        local_t = (progress - PHASE_COARSE_END) / (
+            PHASE_STRUCTURAL_END - PHASE_COARSE_END
+        )
         return _linear(15.0, 8.0, local_t)
 
     local_t = (progress - PHASE_STRUCTURAL_END) / (1.0 - PHASE_STRUCTURAL_END)
@@ -76,7 +80,9 @@ class HillClimbingOptimizer:
         if snapshot_interval <= 0:
             raise ValueError("snapshot_interval must be positive.")
         if target_image.shape[:2] != (100, 100) or target_image.shape[2] != 3:
-            raise ValueError("target_image must have shape (100, 100, 3) for this phase.")
+            raise ValueError(
+                "target_image must have shape (100, 100, 3) for this phase."
+            )
 
         self.max_iterations = max_iterations
         self.snapshot_interval = snapshot_interval
@@ -116,7 +122,9 @@ class HillClimbingOptimizer:
         return get_phase_name(self.iteration, self.max_iterations)
 
     def _sample_center_from_error_distribution(self) -> tuple[int, int, int]:
-        processed_map = process_error_map(self.current_error_map, sigma=self.error_sigma)
+        processed_map = process_error_map(
+            self.current_error_map, sigma=self.error_sigma
+        )
         flat_error_map = processed_map.reshape(10000)
         sampled_index = int(np.random.choice(10000, p=flat_error_map))
         row, col = divmod(sampled_index, 100)

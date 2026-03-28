@@ -19,7 +19,11 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 
 from src.image_loader import load_target_image
-from src.optimizer import HillClimbingOptimizer, get_phase_name, phase_transition_iterations
+from src.optimizer import (
+    HillClimbingOptimizer,
+    get_phase_name,
+    phase_transition_iterations,
+)
 
 
 @dataclass
@@ -35,7 +39,9 @@ class SharedDisplayState:
     last_phase_change_iteration: int | None = None
 
 
-def _rolling_mean(values: list[float], window: int = 50) -> tuple[np.ndarray, np.ndarray]:
+def _rolling_mean(
+    values: list[float], window: int = 50
+) -> tuple[np.ndarray, np.ndarray]:
     arr = np.asarray(values, dtype=np.float64)
     if arr.size == 0:
         return np.array([], dtype=np.float64), np.array([], dtype=np.float64)
@@ -178,9 +184,15 @@ def run_live_display(
     ax_mse.set_yscale("log")
     ax_mse.grid(True, alpha=0.2)
 
-    raw_line, = ax_mse.plot([], [], color="tab:blue", alpha=0.25, linewidth=1.5, label="Raw MSE")
-    smooth_line, = ax_mse.plot([], [], color="tab:blue", linewidth=2.5, label="Smoothed (window=50)")
-    tip_dot, = ax_mse.plot([], [], marker="o", markersize=6, color="tab:red", label="Current")
+    (raw_line,) = ax_mse.plot(
+        [], [], color="tab:blue", alpha=0.25, linewidth=1.5, label="Raw MSE"
+    )
+    (smooth_line,) = ax_mse.plot(
+        [], [], color="tab:blue", linewidth=2.5, label="Smoothed (window=50)"
+    )
+    (tip_dot,) = ax_mse.plot(
+        [], [], marker="o", markersize=6, color="tab:red", label="Current"
+    )
     ax_mse.legend(loc="upper right")
 
     transition_a, transition_b = phase_transition_iterations(max_iterations)
@@ -255,7 +267,10 @@ def run_live_display(
             y_max = max(float(np.max(y_raw)) * 1.1, y_min * 10.0)
             ax_mse.set_ylim(y_min, y_max)
 
-        if phase_change_iteration is not None and phase_change_iteration != last_announced_iteration:
+        if (
+            phase_change_iteration is not None
+            and phase_change_iteration != last_announced_iteration
+        ):
             phase_overlay.set_text(f"{phase_name} Phase")
             overlay_start = time.monotonic()
             last_announced_iteration = phase_change_iteration
@@ -268,7 +283,11 @@ def run_live_display(
                 phase_overlay.set_alpha(0.0)
                 overlay_start = None
 
-        if capture_iteration is not None and not capture_done and iteration >= capture_iteration:
+        if (
+            capture_iteration is not None
+            and not capture_done
+            and iteration >= capture_iteration
+        ):
             fig.savefig(capture_path, dpi=150, bbox_inches="tight")
             capture_done = True
 
@@ -276,7 +295,15 @@ def run_live_display(
             anim.event_source.stop()
 
         fig.canvas.draw_idle()
-        return raw_line, smooth_line, tip_dot, error_im, canvas_im, phase_overlay, stats_text
+        return (
+            raw_line,
+            smooth_line,
+            tip_dot,
+            error_im,
+            canvas_im,
+            phase_overlay,
+            stats_text,
+        )
 
     anim = FuncAnimation(
         fig,
