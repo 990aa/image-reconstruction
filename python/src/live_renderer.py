@@ -257,6 +257,7 @@ class SoftRasterizer:
         softness_value = float(softness)
         for start in range(0, n, chunk_size):
             end = min(start + chunk_size, n)
+            chunk_coverage = coverage[start:end]
             shape_chunk = polygons.shape_types[start:end]
             centers = polygons.centers[start:end]
             sizes = polygons.sizes[start:end]
@@ -270,7 +271,7 @@ class SoftRasterizer:
                     rotations[tri_idx],
                 )
                 tri_signed = self._convex_signed_distance(tri_vertices)
-                coverage[start:end][tri_idx] = self._sigmoid(tri_signed / softness_value)
+                chunk_coverage[tri_idx] = self._sigmoid(tri_signed / softness_value)
                 del tri_vertices, tri_signed
 
             quad_idx = np.where(shape_chunk == SHAPE_QUAD)[0]
@@ -281,20 +282,19 @@ class SoftRasterizer:
                     rotations[quad_idx],
                 )
                 quad_signed = self._convex_signed_distance(quad_vertices)
-                coverage[start:end][quad_idx] = self._sigmoid(
-                    quad_signed / softness_value
-                )
+                chunk_coverage[quad_idx] = self._sigmoid(quad_signed / softness_value)
                 del quad_vertices, quad_signed
 
             ellipse_idx = np.where(shape_chunk == SHAPE_ELLIPSE)[0]
             if ellipse_idx.size > 0:
-                coverage[start:end][ellipse_idx] = self._ellipse_coverage(
+                chunk_coverage[ellipse_idx] = self._ellipse_coverage(
                     centers[ellipse_idx],
                     sizes[ellipse_idx],
                     rotations[ellipse_idx],
                     softness_value,
                 )
 
+            del chunk_coverage
             del shape_chunk, centers, sizes, rotations, tri_idx, quad_idx, ellipse_idx
 
         return coverage.astype(np.float32, copy=False)
