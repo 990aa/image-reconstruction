@@ -517,14 +517,15 @@ def execute_phase7_schedule(
 
     rng = np.random.default_rng(random_seed)
     cfg = LiveOptimizerConfig(
-        color_lr=0.05,
-        position_lr=0.002,
-        size_lr=0.0008,
-        alpha_lr=0.02,
+        color_lr=0.06,
+        position_lr=0.004,
+        size_lr=0.001,
+        alpha_lr=0.0,
         render_chunk_size=50,
-        position_update_interval=8,
-        size_update_interval=12,
-        max_fd_polygons=8,
+        position_update_interval=100,
+        size_update_interval=500,
+        max_fd_polygons=30,
+        max_size_fd_polygons=20,
     )
 
     global_losses: list[float] = []

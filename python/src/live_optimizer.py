@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from skimage import color
 
 from src.live_renderer import (
     SHAPE_ELLIPSE,
@@ -14,25 +15,27 @@ from src.live_renderer import (
 
 @dataclass(frozen=True)
 class LiveOptimizerConfig:
-    color_lr: float = 0.05
-    position_lr: float = 0.002
-    size_lr: float = 0.0005
-    alpha_lr: float = 0.02
-    color_decay_steps: int = 200
-    position_decay_steps: int = 500
-    size_decay_steps: int = 500
-    alpha_decay_steps: int = 300
-    position_eps_px: float = 2.0
+    color_lr: float = 0.08
+    position_lr: float = 0.004
+    size_lr: float = 0.001
+    alpha_lr: float = 0.0
+    color_decay_steps: int = 300
+    position_decay_steps: int = 1000
+    size_decay_steps: int = 2000
+    alpha_decay_steps: int = 1000
+    position_eps_px: float = 1.5
     size_eps_ratio: float = 0.10
     min_size: float = 1.0
     max_size: float | None = None
     max_alpha: float = 1.0
     min_alpha: float = 0.0
-    exact_fd: bool = False
+    exact_fd: bool = True
     render_chunk_size: int = 50
     position_update_interval: int = 1
     size_update_interval: int = 1
     max_fd_polygons: int | None = 24
+    max_size_fd_polygons: int = 20
+    allow_loss_increase: bool = False
 
 
 class _AdamState:
@@ -50,16 +53,17 @@ class _AdamState:
         self.m = beta1 * self.m + (1.0 - beta1) * grad
         self.v = beta2 * self.v + (1.0 - beta2) * (grad * grad)
 
-        bias1 = 1.0 - beta1**self.t
-        bias2 = 1.0 - beta2**self.t
-
-        m_hat = self.m / max(bias1, 1e-8)
-        v_hat = self.v / max(bias2, 1e-8)
+        m_hat = self.m / max(1.0 - beta1**self.t, 1e-8)
+        v_hat = self.v / max(1.0 - beta2**self.t, 1e-8)
         return (lr * m_hat / (np.sqrt(v_hat) + eps)).astype(np.float32, copy=False)
 
 
 class LiveJointOptimizer:
-    """Joint optimizer for all polygons using soft rasterization and grouped updates."""
+    """Joint polygon optimizer using correct compositing-weight gradients.
+
+    Color updates are analytic and exact for the current soft render.
+    Position/size updates are finite-difference and sparsified to top-error polygons.
+    """
 
     def __init__(
         self,
@@ -72,13 +76,14 @@ class LiveJointOptimizer:
         if target_image.ndim != 3 or target_image.shape[2] != 3:
             raise ValueError("target_image must have shape (H, W, 3).")
 
-        target = target_image.astype(np.float32, copy=False)
+        target = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
         if target.shape[:2] != (rasterizer.height, rasterizer.width):
             raise ValueError(
                 "target_image spatial dimensions must match rasterizer grid size."
             )
 
         self.target = target
+        self.target_lab = color.rgb2lab(self.target).astype(np.float32, copy=False)
         self.rasterizer = rasterizer
         self.polygons = polygons
         self.config = LiveOptimizerConfig() if config is None else config
@@ -92,7 +97,7 @@ class LiveJointOptimizer:
             chunk_size=self.config.render_chunk_size,
         )
         self.current_canvas = initial.canvas
-        self.loss_history: list[float] = [self._loss(self.current_canvas, self.target)]
+        self.loss_history: list[float] = [self._loss(self.current_canvas)]
 
     def _reset_adam_states(self) -> None:
         self._color_adam = _AdamState(self.polygons.colors.shape)
@@ -116,7 +121,7 @@ class LiveJointOptimizer:
         )
         self.current_canvas = render.canvas
         if record_loss:
-            self.loss_history.append(self._loss(self.current_canvas, self.target))
+            self.loss_history.append(self._loss(self.current_canvas))
 
     def restore_state(
         self,
@@ -151,11 +156,26 @@ class LiveJointOptimizer:
         )
         self.set_polygons(trimmed, softness=softness, record_loss=record_loss)
 
-    @staticmethod
-    def _loss(canvas: np.ndarray, target: np.ndarray | None = None) -> float:
-        if target is None:
-            raise ValueError("target must be provided")
-        diff = target - canvas
+    def _loss(
+        self,
+        canvas: np.ndarray,
+        target: np.ndarray | None = None,
+        *,
+        target_lab: np.ndarray | None = None,
+    ) -> float:
+        if target_lab is not None:
+            lab_target = target_lab
+        elif target is not None:
+            lab_target = color.rgb2lab(np.clip(target, 0.0, 1.0)).astype(
+                np.float32, copy=False
+            )
+        else:
+            lab_target = self.target_lab
+
+        lab_canvas = color.rgb2lab(np.clip(canvas, 0.0, 1.0)).astype(
+            np.float32, copy=False
+        )
+        diff = lab_canvas - lab_target
         return float(np.mean(diff * diff, dtype=np.float32))
 
     def _current_loss(self) -> float:
@@ -168,199 +188,174 @@ class LiveJointOptimizer:
         return float(base_lr * (0.5 ** (step // decay_steps)))
 
     def _color_gradient(self, render: SoftRenderResult) -> np.ndarray:
-        residual = self.target - render.canvas
-        scale = -2.0 / float(self.target.size)
-        grad = scale * np.einsum(
-            "nhw,hwc->nc", render.effective_alpha, residual, optimize=True
-        )
+        # dL/dc_i = (2/n) * sum(weight_i * (canvas - target))
+        residual = render.canvas - self.target
+        scale = 2.0 / float(self.target.size)
+        grad = scale * np.einsum("nhw,hwc->nc", render.weights, residual, optimize=True)
         return grad.astype(np.float32, copy=False)
 
-    def _alpha_gradient(self, render: SoftRenderResult) -> np.ndarray:
-        residual = self.target - render.canvas
-        scale = -2.0 / float(self.target.size)
-        color_projection = np.einsum(
-            "hwc,nc->nhw", residual, self.polygons.colors, optimize=True
-        )
-        grad = scale * np.sum(render.coverage * color_projection, axis=(1, 2))
-        return grad.astype(np.float32, copy=False)
+    def _alpha_gradient(self, _render: SoftRenderResult) -> np.ndarray:
+        # Alpha gradient is intentionally disabled in this simplified optimizer core.
+        return np.zeros_like(self.polygons.alphas, dtype=np.float32)
 
-    def _local_trial_loss(
+    def _select_fd_indices(
+        self, render: SoftRenderResult, topk: int | None
+    ) -> np.ndarray:
+        n = self.polygons.count
+        if n == 0:
+            return np.zeros((0,), dtype=np.int32)
+
+        if topk is None or topk >= n:
+            return np.arange(n, dtype=np.int32)
+
+        residual_map = np.mean(
+            (render.canvas - self.target) ** 2, axis=2, dtype=np.float32
+        )
+        influence = np.einsum("nhw,hw->n", render.weights, residual_map, optimize=True)
+        k = int(max(1, min(topk, n)))
+        return np.argpartition(influence, -k)[-k:].astype(np.int32)
+
+    def _trial_loss_for_geometry(
         self,
         *,
         index: int,
-        base_render: SoftRenderResult,
         softness: float,
         center_x: float,
         center_y: float,
         size_x: float,
         size_y: float,
-        shape_params: np.ndarray,
     ) -> float:
-        if self.config.exact_fd:
-            old_center = np.array(self.polygons.centers[index], copy=True)
-            old_size = np.array(self.polygons.sizes[index], copy=True)
-            try:
-                self.polygons.centers[index, 0] = float(center_x)
-                self.polygons.centers[index, 1] = float(center_y)
-                self.polygons.sizes[index, 0] = float(max(size_x, self.config.min_size))
-                self.polygons.sizes[index, 1] = float(max(size_y, self.config.min_size))
+        old_center = np.array(self.polygons.centers[index], copy=True)
+        old_size = np.array(self.polygons.sizes[index], copy=True)
+        try:
+            self.polygons.centers[index, 0] = float(center_x)
+            self.polygons.centers[index, 1] = float(center_y)
+            self.polygons.sizes[index, 0] = float(max(size_x, self.config.min_size))
+            self.polygons.sizes[index, 1] = float(max(size_y, self.config.min_size))
+            trial_render = self.rasterizer.render(
+                self.polygons,
+                softness=softness,
+                chunk_size=self.config.render_chunk_size,
+            )
+            return self._loss(trial_render.canvas)
+        finally:
+            self.polygons.centers[index] = old_center
+            self.polygons.sizes[index] = old_size
 
-                trial_render = self.rasterizer.render(
-                    self.polygons,
-                    softness=softness,
-                    chunk_size=self.config.render_chunk_size,
-                )
-                return self._loss(trial_render.canvas, self.target)
-            finally:
-                self.polygons.centers[index] = old_center
-                self.polygons.sizes[index] = old_size
-
-        coverage_new = self.rasterizer.single_coverage_from_values(
-            shape_type=int(self.polygons.shape_types[index]),
-            center_x=float(center_x),
-            center_y=float(center_y),
-            size_x=float(max(size_x, self.config.min_size)),
-            size_y=float(max(size_y, self.config.min_size)),
-            rotation=float(self.polygons.rotations[index]),
-            softness=softness,
-            shape_params=shape_params,
-        )
-
-        alpha = float(np.clip(self.polygons.alphas[index], 0.0, 1.0))
-        old_eff = base_render.effective_alpha[index]
-        new_eff = coverage_new * alpha
-
-        delta = (new_eff - old_eff)[:, :, None]
-        color = self.polygons.colors[index][None, None, :]
-        trial_canvas = base_render.canvas + delta * (color - base_render.canvas)
-        trial_canvas = np.clip(trial_canvas, 0.0, 1.0).astype(np.float32, copy=False)
-        return self._loss(trial_canvas, self.target)
-
-    def _position_and_size_gradients(
+    def _position_gradients(
         self,
         render: SoftRenderResult,
         softness: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
         n = self.polygons.count
         pos_grad = np.zeros((n, 2), dtype=np.float32)
-        size_grad = np.zeros((n, 2), dtype=np.float32)
+        if n == 0:
+            return pos_grad
 
+        indices = self._select_fd_indices(render, self.config.max_fd_polygons)
         eps_pos = float(self.config.position_eps_px)
 
-        if self.config.max_fd_polygons is not None and self.config.max_fd_polygons <= 0:
-            return pos_grad, size_grad
-        if self.config.max_fd_polygons is None:
-            update_indices = np.arange(n, dtype=np.int32)
-        elif n <= self.config.max_fd_polygons:
-            update_indices = np.arange(n, dtype=np.int32)
-        else:
-            residual_map = np.sum(
-                (self.target - render.canvas) ** 2, axis=2, dtype=np.float32
-            )
-            scores = np.einsum(
-                "nhw,hw->n", render.effective_alpha, residual_map, optimize=True
-            )
-            topk = int(min(self.config.max_fd_polygons, n))
-            update_indices = np.argpartition(scores, -topk)[-topk:].astype(np.int32)
-
-        for i in update_indices:
+        for i in indices:
             cx = float(self.polygons.centers[i, 0])
             cy = float(self.polygons.centers[i, 1])
             sx = float(self.polygons.sizes[i, 0])
             sy = float(self.polygons.sizes[i, 1])
-            params = self.polygons.shape_params[i]
 
-            x_plus = self._local_trial_loss(
+            x_plus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=min(cx + eps_pos, self.rasterizer.width - 1.0),
                 center_y=cy,
                 size_x=sx,
                 size_y=sy,
-                shape_params=params,
             )
-            x_minus = self._local_trial_loss(
+            x_minus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=max(cx - eps_pos, 0.0),
                 center_y=cy,
                 size_x=sx,
                 size_y=sy,
-                shape_params=params,
             )
-            y_plus = self._local_trial_loss(
+            y_plus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=cx,
                 center_y=min(cy + eps_pos, self.rasterizer.height - 1.0),
                 size_x=sx,
                 size_y=sy,
-                shape_params=params,
             )
-            y_minus = self._local_trial_loss(
+            y_minus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=cx,
                 center_y=max(cy - eps_pos, 0.0),
                 size_x=sx,
                 size_y=sy,
-                shape_params=params,
             )
 
             pos_grad[i, 0] = (x_plus - x_minus) / (2.0 * eps_pos)
             pos_grad[i, 1] = (y_plus - y_minus) / (2.0 * eps_pos)
 
-            eps_sx = max(abs(sx) * float(self.config.size_eps_ratio), 0.5)
-            eps_sy = max(abs(sy) * float(self.config.size_eps_ratio), 0.5)
+        return pos_grad
+
+    def _size_gradients(
+        self,
+        render: SoftRenderResult,
+        softness: float,
+    ) -> np.ndarray:
+        n = self.polygons.count
+        size_grad = np.zeros((n, 2), dtype=np.float32)
+        if n == 0:
+            return size_grad
+
+        indices = self._select_fd_indices(render, int(self.config.max_size_fd_polygons))
+
+        for i in indices:
+            cx = float(self.polygons.centers[i, 0])
+            cy = float(self.polygons.centers[i, 1])
+            sx = float(self.polygons.sizes[i, 0])
+            sy = float(self.polygons.sizes[i, 1])
+
+            eps_sx = max(abs(sx) * float(self.config.size_eps_ratio), 0.4)
+            eps_sy = max(abs(sy) * float(self.config.size_eps_ratio), 0.4)
 
             sx_plus_val = sx + eps_sx
             sx_minus_val = max(sx - eps_sx, self.config.min_size)
             sy_plus_val = sy + eps_sy
             sy_minus_val = max(sy - eps_sy, self.config.min_size)
 
-            sx_plus = self._local_trial_loss(
+            sx_plus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=cx,
                 center_y=cy,
                 size_x=sx_plus_val,
                 size_y=sy,
-                shape_params=params,
             )
-            sx_minus = self._local_trial_loss(
+            sx_minus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=cx,
                 center_y=cy,
                 size_x=sx_minus_val,
                 size_y=sy,
-                shape_params=params,
             )
-            sy_plus = self._local_trial_loss(
+            sy_plus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=cx,
                 center_y=cy,
                 size_x=sx,
                 size_y=sy_plus_val,
-                shape_params=params,
             )
-            sy_minus = self._local_trial_loss(
+            sy_minus = self._trial_loss_for_geometry(
                 index=i,
-                base_render=render,
                 softness=softness,
                 center_x=cx,
                 center_y=cy,
                 size_x=sx,
                 size_y=sy_minus_val,
-                shape_params=params,
             )
 
             sx_den = max(sx_plus_val - sx_minus_val, 1e-6)
@@ -368,7 +363,7 @@ class LiveJointOptimizer:
             size_grad[i, 0] = (sx_plus - sx_minus) / sx_den
             size_grad[i, 1] = (sy_plus - sy_minus) / sy_den
 
-        return pos_grad, size_grad
+        return size_grad
 
     def step(self, softness: float) -> float:
         if softness <= 0.0:
@@ -379,7 +374,7 @@ class LiveJointOptimizer:
             softness=softness,
             chunk_size=self.config.render_chunk_size,
         )
-        previous_loss = self._loss(render.canvas, self.target)
+        previous_loss = self._loss(render.canvas)
 
         grad_color = self._color_gradient(render)
         grad_alpha = self._alpha_gradient(render)
@@ -391,23 +386,14 @@ class LiveJointOptimizer:
             self.step_count % self.config.size_update_interval == 0
         )
 
-        if update_position or update_size:
-            full_pos_grad, full_size_grad = self._position_and_size_gradients(
-                render,
-                softness,
-            )
-            grad_position = (
-                full_pos_grad
-                if update_position
-                else np.zeros_like(full_pos_grad, dtype=np.float32)
-            )
-            grad_size = (
-                full_size_grad
-                if update_size
-                else np.zeros_like(full_size_grad, dtype=np.float32)
-            )
+        if update_position:
+            grad_position = self._position_gradients(render, softness)
         else:
             grad_position = np.zeros_like(self.polygons.centers, dtype=np.float32)
+
+        if update_size:
+            grad_size = self._size_gradients(render, softness)
+        else:
             grad_size = np.zeros_like(self.polygons.sizes, dtype=np.float32)
 
         lr_color = self._decayed_lr(
@@ -442,46 +428,49 @@ class LiveJointOptimizer:
             1.0,
         ).astype(np.float32, copy=False)
 
-        self.polygons.alphas = np.clip(
-            self.polygons.alphas - self._alpha_adam.step(grad_alpha, lr_alpha),
-            self.config.min_alpha,
-            self.config.max_alpha,
-        ).astype(np.float32, copy=False)
+        if lr_alpha > 0.0:
+            self.polygons.alphas = np.clip(
+                self.polygons.alphas - self._alpha_adam.step(grad_alpha, lr_alpha),
+                self.config.min_alpha,
+                self.config.max_alpha,
+            ).astype(np.float32, copy=False)
 
-        self.polygons.centers = (
-            self.polygons.centers - self._position_adam.step(grad_position, lr_position)
-        ).astype(np.float32, copy=False)
-        self.polygons.centers[:, 0] = np.clip(
-            self.polygons.centers[:, 0],
-            0.0,
-            self.rasterizer.width - 1.0,
-        )
-        self.polygons.centers[:, 1] = np.clip(
-            self.polygons.centers[:, 1],
-            0.0,
-            self.rasterizer.height - 1.0,
-        )
+        if update_position:
+            self.polygons.centers = (
+                self.polygons.centers
+                - self._position_adam.step(grad_position, lr_position)
+            ).astype(np.float32, copy=False)
+            self.polygons.centers[:, 0] = np.clip(
+                self.polygons.centers[:, 0],
+                0.0,
+                self.rasterizer.width - 1.0,
+            )
+            self.polygons.centers[:, 1] = np.clip(
+                self.polygons.centers[:, 1],
+                0.0,
+                self.rasterizer.height - 1.0,
+            )
 
-        max_size = (
-            max(self.rasterizer.width, self.rasterizer.height)
-            if self.config.max_size is None
-            else float(self.config.max_size)
-        )
-        self.polygons.sizes = np.clip(
-            self.polygons.sizes - self._size_adam.step(grad_size, lr_size),
-            self.config.min_size,
-            max_size,
-        ).astype(np.float32, copy=False)
+        if update_size:
+            max_size = (
+                max(self.rasterizer.width, self.rasterizer.height)
+                if self.config.max_size is None
+                else float(self.config.max_size)
+            )
+            self.polygons.sizes = np.clip(
+                self.polygons.sizes - self._size_adam.step(grad_size, lr_size),
+                self.config.min_size,
+                max_size,
+            ).astype(np.float32, copy=False)
 
         updated_render = self.rasterizer.render(
             self.polygons,
             softness=softness,
             chunk_size=self.config.render_chunk_size,
         )
-        updated_loss = self._loss(updated_render.canvas, self.target)
+        updated_loss = self._loss(updated_render.canvas)
 
-        # Keep updates near-monotonic for stable convergence diagnostics.
-        if updated_loss > previous_loss:
+        if (not self.config.allow_loss_increase) and (updated_loss > previous_loss):
             self.polygons.centers = old_centers
             self.polygons.sizes = old_sizes
             self.polygons.colors = old_colors
@@ -495,7 +484,11 @@ class LiveJointOptimizer:
         return updated_loss
 
     def run(
-        self, steps: int, *, start_softness: float = 2.0, end_softness: float = 0.5
+        self,
+        steps: int,
+        *,
+        start_softness: float = 3.0,
+        end_softness: float = 0.3,
     ) -> list[float]:
         if steps <= 0:
             return []
@@ -596,8 +589,8 @@ class LiveJointOptimizer:
         *,
         total_steps: int,
         max_polygons: int,
-        start_softness: float = 2.0,
-        end_softness: float = 0.5,
+        start_softness: float = 3.0,
+        end_softness: float = 0.3,
         convergence_window: int = 25,
         convergence_delta: float = 1e-5,
     ) -> list[float]:
@@ -621,10 +614,10 @@ class LiveJointOptimizer:
             ):
                 continue
 
-            residual_map = np.sum((self.target - self.current_canvas) ** 2, axis=2)
+            residual_map = np.mean((self.target - self.current_canvas) ** 2, axis=2)
             max_index = int(np.argmax(residual_map))
             y, x = divmod(max_index, self.rasterizer.width)
-            color = (
+            color_hint = (
                 float(self.target[y, x, 0]),
                 float(self.target[y, x, 1]),
                 float(self.target[y, x, 2]),
@@ -635,7 +628,7 @@ class LiveJointOptimizer:
                 center_y=float(y),
                 size_x=4.0,
                 size_y=4.0,
-                color=color,
+                color=color_hint,
                 alpha=0.30,
                 shape_type=SHAPE_ELLIPSE,
                 rotation=0.0,
