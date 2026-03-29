@@ -205,20 +205,23 @@ def print_analysis(
     else:
         print(f"hard_timeout_seconds: {hard_timeout_seconds:.1f}")
 
-    print("auto_rounds:")
-    for round_cfg in plan.rounds:
-        print(
-            "  "
-            + ", ".join(
-                [
-                    f"{round_cfg.name}",
-                    f"res={round_cfg.resolution}",
-                    f"batches={round_cfg.batch_schedule}",
-                    f"size=[{round_cfg.min_size:.2f},{round_cfg.max_size:.2f}]",
-                    f"steps={round_cfg.max_steps_per_cycle}/{round_cfg.post_add_steps}",
-                ]
-            )
+    print("staged_plan:")
+    print(
+        "  "
+        + ", ".join(
+            [
+                f"A:init={plan.stage_a_initial_polygons}",
+                f"A:steps={plan.stage_a_steps}",
+                f"B:batches={plan.stage_b_batches}x{plan.stage_b_batch_size}",
+                f"B:steps/batch={plan.stage_b_steps_per_batch}",
+                f"B:size={plan.stage_b_size_start:.1f}->{plan.stage_b_size_end:.1f}",
+                f"C:batches={plan.stage_c_batches}x{plan.stage_c_batch_size}",
+                f"C:steps/batch={plan.stage_c_steps_per_batch}",
+                f"C:size={plan.stage_c_size_start:.1f}->{plan.stage_c_size_end:.1f}",
+                f"D:steps={plan.stage_d_steps}",
+            ]
         )
+    )
 
     if iter_rate is None:
         print("estimated_iteration_rate: unknown")
@@ -313,9 +316,7 @@ def main() -> int:
         )
     else:
         print("Launching staged single-optimizer live visualization...")
-        print(
-            "Controls: P pause, R screenshot, Q quit"
-        )
+        print("Controls: P pause, R screenshot, Q quit")
         result = run_phase7_live_display(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,

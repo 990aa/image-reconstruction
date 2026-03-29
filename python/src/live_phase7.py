@@ -18,7 +18,6 @@ except Exception:
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
-from PIL import Image
 from scipy.ndimage import gaussian_filter
 
 from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
@@ -174,7 +173,10 @@ def _grid_initialized_batch(
 
             centers[idx] = np.array([cx, cy], dtype=np.float32)
             sizes[idx] = np.array([base_size, base_size], dtype=np.float32)
-            colors[idx] = np.array(_region_mean_color(target, cx, cy, max(2, base_size // 2)), dtype=np.float32)
+            colors[idx] = np.array(
+                _region_mean_color(target, cx, cy, max(2, base_size // 2)),
+                dtype=np.float32,
+            )
             idx += 1
 
     return LivePolygonBatch(
@@ -188,7 +190,9 @@ def _grid_initialized_batch(
     )
 
 
-def _top_error_centers(error_map: np.ndarray, *, k: int, radius: int) -> list[tuple[int, int]]:
+def _top_error_centers(
+    error_map: np.ndarray, *, k: int, radius: int
+) -> list[tuple[int, int]]:
     work = np.array(error_map, copy=True)
     h, w = work.shape
     centers: list[tuple[int, int]] = []
@@ -231,13 +235,17 @@ def _add_targeted_batch(
     if high_frequency:
         err = _high_frequency_error_map(target, optimizer.current_canvas)
     else:
-        err = np.mean((target - optimizer.current_canvas) ** 2, axis=2, dtype=np.float32)
+        err = np.mean(
+            (target - optimizer.current_canvas) ** 2, axis=2, dtype=np.float32
+        )
 
     radius = max(2, int(round(size_px * 0.8)))
     centers = _top_error_centers(err, k=batch_size, radius=radius)
 
     for cx, cy in centers:
-        color_hint = _region_mean_color(target, cx, cy, max(2, int(round(size_px * 0.6))))
+        color_hint = _region_mean_color(
+            target, cx, cy, max(2, int(round(size_px * 0.6)))
+        )
         optimizer.add_polygon(
             center_x=float(cx),
             center_y=float(cy),
@@ -291,7 +299,9 @@ def _run_stage_steps(
         if max_total_steps is not None and total_points + executed >= max_total_steps:
             break
 
-        while controls.paused and not controls.quit_requested and not deadline_reached():
+        while (
+            controls.paused and not controls.quit_requested and not deadline_reached()
+        ):
             time.sleep(0.05)
 
         if controls.quit_requested or deadline_reached():
@@ -327,7 +337,9 @@ def execute_phase7_schedule(
     h, w = target.shape[:2]
 
     start_time = time.monotonic()
-    soft_deadline = start_time + max(0.0, float(minutes) * 60.0) if minutes > 0.0 else None
+    soft_deadline = (
+        start_time + max(0.0, float(minutes) * 60.0) if minutes > 0.0 else None
+    )
     hard_deadline = (
         start_time + float(hard_timeout_seconds)
         if hard_timeout_seconds is not None and hard_timeout_seconds > 0.0
@@ -336,7 +348,10 @@ def execute_phase7_schedule(
 
     def _deadline_reached() -> bool:
         now = time.monotonic()
-        return bool((soft_deadline is not None and now >= soft_deadline) or (hard_deadline is not None and now >= hard_deadline))
+        return bool(
+            (soft_deadline is not None and now >= soft_deadline)
+            or (hard_deadline is not None and now >= hard_deadline)
+        )
 
     rng = np.random.default_rng(random_seed)
     del rng
@@ -372,7 +387,9 @@ def execute_phase7_schedule(
     def _emit(stage_name: str) -> None:
         canvas = np.array(optimizer.current_canvas, copy=True)
         loss = _rgb_mse(target, canvas)
-        status = f"stage={stage_name} polygons={optimizer.polygons.count} rgb_mse={loss:.6f}"
+        status = (
+            f"stage={stage_name} polygons={optimizer.polygons.count} rgb_mse={loss:.6f}"
+        )
         shared_update_callback(
             canvas,
             optimizer.polygons.copy(),
@@ -427,7 +444,10 @@ def execute_phase7_schedule(
             break
 
         t = batch_idx / max(plan.stage_b_batches - 1, 1)
-        size_px = float(plan.stage_b_size_start + (plan.stage_b_size_end - plan.stage_b_size_start) * t)
+        size_px = float(
+            plan.stage_b_size_start
+            + (plan.stage_b_size_end - plan.stage_b_size_start) * t
+        )
         _add_targeted_batch(
             optimizer,
             target=target,
@@ -468,7 +488,10 @@ def execute_phase7_schedule(
             break
 
         t = batch_idx / max(plan.stage_c_batches - 1, 1)
-        size_px = float(plan.stage_c_size_start + (plan.stage_c_size_end - plan.stage_c_size_start) * t)
+        size_px = float(
+            plan.stage_c_size_start
+            + (plan.stage_c_size_end - plan.stage_c_size_start) * t
+        )
         _add_targeted_batch(
             optimizer,
             target=target,
@@ -643,7 +666,9 @@ def run_phase7_live_display(
         status: str,
         stage_markers: list[tuple[str, int]],
     ) -> None:
-        sizes = np.maximum(polygons.sizes[:, 0], polygons.sizes[:, 1]).astype(np.float32)
+        sizes = np.maximum(polygons.sizes[:, 0], polygons.sizes[:, 1]).astype(
+            np.float32
+        )
         with lock:
             shared.canvas = np.array(canvas, copy=True)
             shared.signed_residual = _signed_residual(shared.target, shared.canvas)
@@ -695,7 +720,9 @@ def run_phase7_live_display(
     ax_canvas.set_xticks([])
     ax_canvas.set_yticks([])
 
-    im_error = ax_error.imshow(shared.signed_residual, cmap="coolwarm", vmin=-1.0, vmax=1.0)
+    im_error = ax_error.imshow(
+        shared.signed_residual, cmap="coolwarm", vmin=-1.0, vmax=1.0
+    )
     im_error.set_interpolation("nearest")
     ax_error.set_title("Signed Residual")
     ax_error.set_xticks([])
@@ -787,7 +814,9 @@ def run_phase7_live_display(
 
         for name, idx in stage_markers:
             marker_lines.append(
-                ax_curve.axvline(int(idx), linestyle="--", color="gray", alpha=0.65, linewidth=1.1)
+                ax_curve.axvline(
+                    int(idx), linestyle="--", color="gray", alpha=0.65, linewidth=1.1
+                )
             )
             ax_curve.text(
                 int(idx),
@@ -805,7 +834,9 @@ def run_phase7_live_display(
                     f"stage      : {stage_name}",
                     f"iteration  : {iteration}",
                     f"polygons   : {polygon_count}",
-                    f"rgb mse    : {losses[-1]:.6f}" if losses.size else "rgb mse    : n/a",
+                    f"rgb mse    : {losses[-1]:.6f}"
+                    if losses.size
+                    else "rgb mse    : n/a",
                     f"paused     : {paused}",
                     f"state      : {status}",
                     "keys: P pause | R screenshot | Q quit",
@@ -822,7 +853,9 @@ def run_phase7_live_display(
             hist, edges = np.histogram(sizes, bins=bins)
             centers = 0.5 * (edges[:-1] + edges[1:])
             widths = np.maximum(edges[1:] - edges[:-1], 1e-3)
-            ax_sizes.bar(centers, hist, width=widths * 0.9, color="tab:orange", alpha=0.8)
+            ax_sizes.bar(
+                centers, hist, width=widths * 0.9, color="tab:orange", alpha=0.8
+            )
 
         if controls.quit_requested and not running:
             anim.event_source.stop()
