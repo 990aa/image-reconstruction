@@ -91,7 +91,7 @@ class LiveJointOptimizer:
         self.step_count = 0
         initial = self.rasterizer.render(
             self.polygons,
-            softness=2.0,
+            softness=0.8,
             chunk_size=self.config.render_chunk_size,
         )
         self.current_canvas = initial.canvas
