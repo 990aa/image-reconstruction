@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import textwrap
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -662,6 +663,52 @@ def execute_phase7_schedule(
             start_soft = max(0.2, round_cfg.start_softness * controls.softness_scale)
             end_soft = max(0.15, round_cfg.end_softness * controls.softness_scale)
 
+            last_emit_time = 0.0
+
+            def _emit_intermediate(opt: LiveJointOptimizer) -> None:
+                nonlocal last_emit_time
+                now = time.monotonic()
+                if (now - last_emit_time) < 0.6:
+                    return
+
+                partial_losses = [float(v) for v in opt.loss_history[before_len:]]
+                if not partial_losses:
+                    partial_losses = [float(opt.loss_history[-1])]
+                losses_view = list(global_losses) + partial_losses
+                if max_total_steps is not None and len(losses_view) > max_total_steps:
+                    losses_view = losses_view[:max_total_steps]
+
+                full_canvas = _resize_rgb(opt.current_canvas, base_resolution)
+                loss_value = float(
+                    np.mean((target_image - full_canvas) ** 2, dtype=np.float32)
+                )
+                remaining_for_status = _remaining_seconds()
+                remaining_text = (
+                    "n/a"
+                    if remaining_for_status is None
+                    else f"{remaining_for_status:.1f}s"
+                )
+
+                status = (
+                    f"{round_cfg.name} | polygons={opt.polygons.count} | "
+                    f"loss={loss_value:.6f} | softness={controls.softness_scale:.2f} | "
+                    f"remaining={remaining_text}"
+                )
+                shared_update_callback(
+                    full_canvas,
+                    opt.polygons.copy(),
+                    round_cfg.resolution,
+                    losses_view,
+                    resolution_markers,
+                    batch_markers,
+                    round_cfg.name,
+                    len(losses_view),
+                    loss_value,
+                    True,
+                    status,
+                )
+                last_emit_time = now
+
             progressive_growth(
                 optimizer,
                 batch_schedule=[int(batch_size)],
@@ -682,6 +729,8 @@ def execute_phase7_schedule(
                 max_recovery_steps=0,
                 start_softness=start_soft,
                 end_softness=end_soft,
+                progress_callback=_emit_intermediate,
+                progress_every_steps=4,
             )
 
             if controls.correction_requested:
@@ -997,9 +1046,11 @@ def run_phase7_live_display(
         "",
         va="top",
         ha="left",
-        fontsize=9,
+        fontsize=8,
         family="monospace",
         transform=ax_loss.transAxes,
+        wrap=True,
+        bbox={"boxstyle": "round,pad=0.25", "fc": "white", "ec": "0.7", "alpha": 0.8},
     )
 
     marker_artists: list = []
@@ -1106,6 +1157,16 @@ def run_phase7_live_display(
                 )
             )
 
+        keys_help = textwrap.fill(
+            "keys: P pause | S seg | E residual mode | R shot | Q quit | 1/2/3 view | V cycle view | G grow | D correct | +/- softness",
+            width=76,
+            break_long_words=False,
+        )
+        state_line = textwrap.fill(
+            f"state           : {status}",
+            width=76,
+            break_long_words=False,
+        )
         status_text.set_text(
             "\n".join(
                 [
@@ -1114,8 +1175,8 @@ def run_phase7_live_display(
                     f"polygons        : {polygon_count}",
                     f"live softness   : {softness:.2f}",
                     f"paused          : {paused}",
-                    f"state           : {status}",
-                    "keys: P pause | S seg | E residual mode | R shot | Q quit | 1/2/3 view | V cycle view | G grow | D correct | +/- softness",
+                    state_line,
+                    keys_help,
                 ]
             )
         )

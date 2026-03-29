@@ -179,3 +179,39 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
 
     assert hf_hf_drop >= (raw_hf_drop - 1e-3)
     assert hf_drop > (raw_drop - 0.02)
+
+
+def test_progressive_growth_emits_intermediate_callbacks() -> None:
+    target = _hybrid_target(48)
+    optimizer = _make_partial_optimizer(target)
+
+    callback_steps: list[int] = []
+
+    def _on_progress(opt: LiveJointOptimizer) -> None:
+        callback_steps.append(int(opt.step_count))
+
+    progressive_growth(
+        optimizer,
+        batch_schedule=[6],
+        max_steps_per_cycle=16,
+        post_add_steps=8,
+        convergence_window=50,
+        convergence_rel_threshold=0.001,
+        region_window=3,
+        new_polygon_alpha=0.60,
+        min_new_size=1.5,
+        max_new_size=4.0,
+        use_content_aware_shapes=True,
+        use_high_frequency_targeting=True,
+        residual_sigma=10.0,
+        low_frequency_correction_strength=0.20,
+        max_add_attempts=2,
+        enforce_cycle_improvement=False,
+        start_softness=1.2,
+        end_softness=0.6,
+        progress_callback=_on_progress,
+        progress_every_steps=2,
+    )
+
+    assert callback_steps
+    assert max(callback_steps) >= 2

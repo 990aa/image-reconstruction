@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 from PIL import Image
@@ -439,6 +439,8 @@ def optimize_until_converged(
     start_softness: float = 2.0,
     end_softness: float = 0.5,
     softness_horizon: int | None = None,
+    progress_callback: Callable[[LiveJointOptimizer], None] | None = None,
+    progress_every_steps: int = 4,
 ) -> tuple[int, bool]:
     if max_steps <= 0:
         return 0, _is_converged(
@@ -458,6 +460,10 @@ def optimize_until_converged(
             end_softness=end_softness,
         )
         optimizer.step(softness=softness)
+        if progress_callback is not None and (
+            (local_step + 1) % max(1, progress_every_steps) == 0
+        ):
+            progress_callback(optimizer)
         if _is_converged(
             optimizer.loss_history,
             window=convergence_window,
@@ -490,6 +496,8 @@ def progressive_growth(
     max_recovery_steps: int | None = None,
     start_softness: float = 2.0,
     end_softness: float = 0.5,
+    progress_callback: Callable[[LiveJointOptimizer], None] | None = None,
+    progress_every_steps: int = 4,
 ) -> tuple[list[GrowthCycleResult], list[GrowthEvent]]:
     cycle_results: list[GrowthCycleResult] = []
     events: list[GrowthEvent] = []
@@ -522,6 +530,8 @@ def progressive_growth(
                 start_softness=start_softness,
                 end_softness=end_softness,
                 softness_horizon=estimated_steps,
+                progress_callback=progress_callback,
+                progress_every_steps=progress_every_steps,
             )
 
         loss_before_add = float(optimizer.loss_history[-1])
@@ -706,6 +716,8 @@ def progressive_growth(
                     accepted = True
                     polygon_added = True
                     target_center_used = target_center
+                    if progress_callback is not None:
+                        progress_callback(optimizer)
                     break
 
                 optimizer.remove_last_polygon(
@@ -782,6 +794,8 @@ def progressive_growth(
 
                 target_center_used = placed_xy
                 polygon_added = True
+                if progress_callback is not None:
+                    progress_callback(optimizer)
 
             if not polygon_added:
                 continue
@@ -826,12 +840,19 @@ def progressive_growth(
                 best_polygons = optimizer.polygons.copy()
                 best_cycle_canvas = np.array(optimizer.current_canvas, copy=True)
 
+            if progress_callback is not None and (
+                post_steps % max(1, progress_every_steps) == 0
+            ):
+                progress_callback(optimizer)
+
         apply_low_frequency_color_correction(
             optimizer,
             sigma=residual_sigma,
             strength=low_frequency_correction_strength,
             softness=end_softness,
         )
+        if progress_callback is not None:
+            progress_callback(optimizer)
 
         recovery_steps = 0
         if not enforce_cycle_improvement:
