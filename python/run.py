@@ -162,7 +162,9 @@ def _estimate_runtime_seconds(
     iter_rate = base_rate_200 * resolution_penalty * complexity_penalty
 
     target_factor = max(0.5, min(2.0, (0.01 / max(target_mse, 1e-6)) ** 0.35))
-    expected_iters = (1200.0 + 2600.0 * complexity) * target_factor * (resolution / 200.0) ** 2
+    expected_iters = (
+        (1200.0 + 2600.0 * complexity) * target_factor * (resolution / 200.0) ** 2
+    )
     usable_iters = min(float(max_iterations), expected_iters)
     eta_seconds = usable_iters / max(iter_rate, 1e-6)
 

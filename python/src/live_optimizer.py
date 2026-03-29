@@ -134,7 +134,9 @@ class LiveJointOptimizer:
         if record_loss:
             self.loss_history.append(float(loss_value))
 
-    def remove_last_polygon(self, *, softness: float = 0.5, record_loss: bool = True) -> None:
+    def remove_last_polygon(
+        self, *, softness: float = 0.5, record_loss: bool = True
+    ) -> None:
         if self.polygons.count == 0:
             return
         keep = self.polygons.count - 1
@@ -252,8 +254,12 @@ class LiveJointOptimizer:
         elif n <= self.config.max_fd_polygons:
             update_indices = np.arange(n, dtype=np.int32)
         else:
-            residual_map = np.sum((self.target - render.canvas) ** 2, axis=2, dtype=np.float32)
-            scores = np.einsum("nhw,hw->n", render.effective_alpha, residual_map, optimize=True)
+            residual_map = np.sum(
+                (self.target - render.canvas) ** 2, axis=2, dtype=np.float32
+            )
+            scores = np.einsum(
+                "nhw,hw->n", render.effective_alpha, residual_map, optimize=True
+            )
             topk = int(min(self.config.max_fd_polygons, n))
             update_indices = np.argpartition(scores, -topk)[-topk:].astype(np.int32)
 
@@ -378,13 +384,11 @@ class LiveJointOptimizer:
         grad_color = self._color_gradient(render)
         grad_alpha = self._alpha_gradient(render)
 
-        update_position = (
-            self.config.position_update_interval > 0
-            and (self.step_count % self.config.position_update_interval == 0)
+        update_position = self.config.position_update_interval > 0 and (
+            self.step_count % self.config.position_update_interval == 0
         )
-        update_size = (
-            self.config.size_update_interval > 0
-            and (self.step_count % self.config.size_update_interval == 0)
+        update_size = self.config.size_update_interval > 0 and (
+            self.step_count % self.config.size_update_interval == 0
         )
 
         if update_position or update_size:
@@ -490,7 +494,9 @@ class LiveJointOptimizer:
         self.loss_history.append(updated_loss)
         return updated_loss
 
-    def run(self, steps: int, *, start_softness: float = 2.0, end_softness: float = 0.5) -> list[float]:
+    def run(
+        self, steps: int, *, start_softness: float = 2.0, end_softness: float = 0.5
+    ) -> list[float]:
         if steps <= 0:
             return []
 
@@ -555,11 +561,13 @@ class LiveJointOptimizer:
             [
                 self.polygons.colors,
                 np.array(
-                    [[
-                        float(np.clip(color[0], 0.0, 1.0)),
-                        float(np.clip(color[1], 0.0, 1.0)),
-                        float(np.clip(color[2], 0.0, 1.0)),
-                    ]],
+                    [
+                        [
+                            float(np.clip(color[0], 0.0, 1.0)),
+                            float(np.clip(color[1], 0.0, 1.0)),
+                            float(np.clip(color[2], 0.0, 1.0)),
+                        ]
+                    ],
                     dtype=np.float32,
                 ),
             ],

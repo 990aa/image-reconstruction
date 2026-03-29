@@ -76,8 +76,12 @@ def _run_single_shape(
 
 def test_phase5_circle_prefers_ellipse_over_triangle() -> None:
     target = _circle_target(64)
-    ellipse_loss = _run_single_shape(target, shape_type=SHAPE_ELLIPSE, size_xy=(14.0, 14.0))
-    triangle_loss = _run_single_shape(target, shape_type=SHAPE_TRIANGLE, size_xy=(14.0, 14.0))
+    ellipse_loss = _run_single_shape(
+        target, shape_type=SHAPE_ELLIPSE, size_xy=(14.0, 14.0)
+    )
+    triangle_loss = _run_single_shape(
+        target, shape_type=SHAPE_TRIANGLE, size_xy=(14.0, 14.0)
+    )
     assert ellipse_loss < triangle_loss
 
 

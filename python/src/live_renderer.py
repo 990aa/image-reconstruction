@@ -303,9 +303,13 @@ class SoftRasterizer:
         start = np.mod(angle_ranges[:, 0], 2.0 * np.pi)[:, None, None]
         end = np.mod(angle_ranges[:, 1], 2.0 * np.pi)[:, None, None]
 
-        sector_mask = np.where(start <= end, (ang >= start) & (ang <= end), (ang >= start) | (ang <= end))
+        sector_mask = np.where(
+            start <= end, (ang >= start) & (ang <= end), (ang >= start) | (ang <= end)
+        )
         radial_cov = self._sigmoid(radial_signed / float(softness))
-        return (radial_cov * sector_mask.astype(np.float32)).astype(np.float32, copy=False)
+        return (radial_cov * sector_mask.astype(np.float32)).astype(
+            np.float32, copy=False
+        )
 
     def _bezier_patch_coverage(
         self,
@@ -338,7 +342,11 @@ class SoftRasterizer:
 
             t = np.linspace(0.0, 1.0, samples_per_edge, dtype=np.float32)[None, :, None]
             omt = 1.0 - t
-            pts = omt * omt * start_v[:, None, :] + 2.0 * omt * t * control[:, None, :] + t * t * end_v[:, None, :]
+            pts = (
+                omt * omt * start_v[:, None, :]
+                + 2.0 * omt * t * control[:, None, :]
+                + t * t * end_v[:, None, :]
+            )
 
             start_i = edge_idx * samples_per_edge
             end_i = start_i + samples_per_edge
@@ -407,8 +415,12 @@ class SoftRasterizer:
             bezier_idx = np.where(shape_chunk == SHAPE_BEZIER_PATCH)[0]
             if bezier_idx.size > 0:
                 edge_curvatures = params[bezier_idx, :4]
-                max_curve = np.minimum(sizes[bezier_idx, 0], sizes[bezier_idx, 1]) * 0.35
-                edge_curvatures = np.clip(edge_curvatures, -max_curve[:, None], max_curve[:, None])
+                max_curve = (
+                    np.minimum(sizes[bezier_idx, 0], sizes[bezier_idx, 1]) * 0.35
+                )
+                edge_curvatures = np.clip(
+                    edge_curvatures, -max_curve[:, None], max_curve[:, None]
+                )
                 chunk_coverage[bezier_idx] = self._bezier_patch_coverage(
                     centers[bezier_idx],
                     sizes[bezier_idx],
@@ -489,10 +501,14 @@ class SoftRasterizer:
             )[0]
 
         if shape_type == SHAPE_THIN_STROKE:
-            return self._thin_stroke_coverage(center, params[:, :2], params[:, 2], softness)[0]
+            return self._thin_stroke_coverage(
+                center, params[:, :2], params[:, 2], softness
+            )[0]
 
         if shape_type == SHAPE_ANNULAR_SEGMENT:
-            return self._annular_segment_coverage(center, size, params[:, :2], softness)[0]
+            return self._annular_segment_coverage(
+                center, size, params[:, :2], softness
+            )[0]
 
         raise ValueError(f"Unsupported shape type code: {shape_type}")
 

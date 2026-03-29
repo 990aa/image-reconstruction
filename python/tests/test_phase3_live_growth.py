@@ -56,7 +56,9 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
     assert progressive_optimizer.polygons.count == 100
     assert growth_events
 
-    improved_cycles = sum(1 for cycle in cycle_results if cycle.loss_after_cycle < cycle.loss_before_cycle)
+    improved_cycles = sum(
+        1 for cycle in cycle_results if cycle.loss_after_cycle < cycle.loss_before_cycle
+    )
     assert improved_cycles >= 4
     assert cycle_results[-1].loss_after_cycle < cycle_results[0].loss_before_cycle
 
@@ -64,7 +66,9 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
         assert event.distance_to_target <= 20.0
 
     total_steps = int(sum(c.optimization_steps for c in cycle_results))
-    progressive_optimizer.run(max(60, total_steps // 2), start_softness=1.2, end_softness=0.5)
+    progressive_optimizer.run(
+        max(60, total_steps // 2), start_softness=1.2, end_softness=0.5
+    )
 
     baseline_config = LiveOptimizerConfig(
         color_lr=0.0,
@@ -92,6 +96,8 @@ def test_phase3_progressive_growth_on_grape_beats_random_100() -> None:
     baseline_start_loss = float(baseline_optimizer.loss_history[0])
     baseline_optimizer.run(total_steps, start_softness=2.0, end_softness=0.5)
 
-    progressive_drop = progressive_start_loss - float(progressive_optimizer.loss_history[-1])
+    progressive_drop = progressive_start_loss - float(
+        progressive_optimizer.loss_history[-1]
+    )
     baseline_drop = baseline_start_loss - float(baseline_optimizer.loss_history[-1])
     assert progressive_drop > baseline_drop

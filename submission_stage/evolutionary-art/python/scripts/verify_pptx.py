@@ -24,7 +24,11 @@ def verify_pptx(pptx_path: Path, expected_slides: int = 10) -> None:
     with ZipFile(pptx_path, "r") as zf:
         names = zf.namelist()
         slide_names = sorted(
-            [n for n in names if n.startswith("ppt/slides/slide") and n.endswith(".xml")],
+            [
+                n
+                for n in names
+                if n.startswith("ppt/slides/slide") and n.endswith(".xml")
+            ],
             key=slide_sort_key,
         )
         media_names = [n for n in names if n.startswith("ppt/media/")]

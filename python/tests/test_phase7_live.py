@@ -36,35 +36,85 @@ def test_phase7_keyboard_controls_include_legacy_and_new() -> None:
     def quit_now() -> None:
         quit_called["value"] = True
 
-    assert handle_phase7_control_key("p", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "pause"
+    assert (
+        handle_phase7_control_key(
+            "p", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "pause"
+    )
     assert controls.paused
 
-    assert handle_phase7_control_key("s", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "segmentation-toggle"
+    assert (
+        handle_phase7_control_key(
+            "s", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "segmentation-toggle"
+    )
     assert controls.show_segmentation_overlay
 
-    assert handle_phase7_control_key("e", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "error-mode-cycle"
+    assert (
+        handle_phase7_control_key(
+            "e", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "error-mode-cycle"
+    )
     assert controls.residual_mode == 1
 
-    assert handle_phase7_control_key("r", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "screenshot"
+    assert (
+        handle_phase7_control_key(
+            "r", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "screenshot"
+    )
     assert screenshot_called["value"]
 
-    assert handle_phase7_control_key("2", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "variant-switch"
+    assert (
+        handle_phase7_control_key(
+            "2", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "variant-switch"
+    )
     assert controls.view_mode == 1
 
-    assert handle_phase7_control_key("v", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "view-cycle"
+    assert (
+        handle_phase7_control_key(
+            "v", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "view-cycle"
+    )
     assert controls.view_mode == 2
 
     before_softness = controls.softness_scale
-    assert handle_phase7_control_key("+", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "softness-up"
+    assert (
+        handle_phase7_control_key(
+            "+", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "softness-up"
+    )
     assert controls.softness_scale > before_softness
 
-    assert handle_phase7_control_key("g", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "force-growth"
+    assert (
+        handle_phase7_control_key(
+            "g", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "force-growth"
+    )
     assert controls.force_growth_requested
 
-    assert handle_phase7_control_key("d", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "residual-correction"
+    assert (
+        handle_phase7_control_key(
+            "d", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "residual-correction"
+    )
     assert controls.correction_requested
 
-    assert handle_phase7_control_key("q", controls=controls, screenshot_callback=shot, quit_callback=quit_now) == "quit"
+    assert (
+        handle_phase7_control_key(
+            "q", controls=controls, screenshot_callback=shot, quit_callback=quit_now
+        )
+        == "quit"
+    )
     assert controls.quit_requested
     assert quit_called["value"]
 
@@ -85,7 +135,9 @@ def test_phase7_run_cli_interface_no_display(tmp_path: Path) -> None:
     from PIL import Image
 
     image_path = tmp_path / "phase7_input.png"
-    Image.fromarray((np.clip(image, 0.0, 1.0) * 255.0).astype(np.uint8), mode="RGB").save(image_path)
+    Image.fromarray(
+        (np.clip(image, 0.0, 1.0) * 255.0).astype(np.uint8), mode="RGB"
+    ).save(image_path)
 
     completed = subprocess.run(
         [

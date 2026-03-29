@@ -4,7 +4,9 @@ from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
 from src.live_renderer import LivePolygonBatch, SHAPE_QUAD, SoftRasterizer
 
 
-def _make_rect_target(height: int, width: int) -> tuple[np.ndarray, tuple[float, float], np.ndarray]:
+def _make_rect_target(
+    height: int, width: int
+) -> tuple[np.ndarray, tuple[float, float], np.ndarray]:
     target = np.ones((height, width, 3), dtype=np.float32)
     color = np.array([0.20, 0.70, 0.40], dtype=np.float32)
 
@@ -58,7 +60,9 @@ def test_joint_optimizer_color_and_position_converge_on_simple_rectangle() -> No
     assert final_dist < initial_dist
 
     increases = 0
-    for prev, curr in zip(optimizer.loss_history[:-1], optimizer.loss_history[1:], strict=True):
+    for prev, curr in zip(
+        optimizer.loss_history[:-1], optimizer.loss_history[1:], strict=True
+    ):
         if curr > prev + 1e-7:
             increases += 1
 

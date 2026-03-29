@@ -6,7 +6,6 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -95,11 +94,15 @@ def main() -> int:
                     try:
                         proc.wait(timeout=10)
                     except subprocess.TimeoutExpired:
-                        print("[timeout-runner] terminate timed out, killing process...")
+                        print(
+                            "[timeout-runner] terminate timed out, killing process..."
+                        )
                         proc.kill()
                         proc.wait(timeout=10)
                     total_elapsed = time.monotonic() - start
-                    final_code = int(proc.returncode) if proc.returncode is not None else 1
+                    final_code = (
+                        int(proc.returncode) if proc.returncode is not None else 1
+                    )
                     print(
                         f"[timeout-runner] stopped after {total_elapsed:.1f}s with exit code {final_code}"
                     )

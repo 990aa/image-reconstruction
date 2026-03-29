@@ -64,7 +64,33 @@ class ResidualDecomposition:
 
 
 def default_growth_batch_schedule() -> list[int]:
-    return [20, 20, 20, 20, 20, 10, 10, 10, 10, 10, 5, 5, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+    return [
+        20,
+        20,
+        20,
+        20,
+        20,
+        10,
+        10,
+        10,
+        10,
+        10,
+        5,
+        5,
+        5,
+        5,
+        5,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+    ]
 
 
 def make_empty_live_batch() -> LivePolygonBatch:
@@ -132,7 +158,9 @@ def _resize_rgb(image: np.ndarray, resolution: int) -> np.ndarray:
     u8 = np.round(clipped * 255.0).astype(np.uint8)
     pil = Image.fromarray(u8, mode="RGB")
     resized = pil.resize((resolution, resolution), Image.Resampling.LANCZOS)
-    return (np.asarray(resized, dtype=np.float32) / 255.0).astype(np.float32, copy=False)
+    return (np.asarray(resized, dtype=np.float32) / 255.0).astype(
+        np.float32, copy=False
+    )
 
 
 def _softness_for_step(
@@ -146,7 +174,9 @@ def _softness_for_step(
     return float(start_softness + (end_softness - start_softness) * t)
 
 
-def _relative_loss_improvement(loss_history: Sequence[float], window: int = 100) -> float:
+def _relative_loss_improvement(
+    loss_history: Sequence[float], window: int = 100
+) -> float:
     if window <= 0:
         raise ValueError("window must be positive")
     if len(loss_history) < window + 1:
@@ -195,10 +225,14 @@ def high_frequency_error_map(
     sigma: float = 10.0,
 ) -> np.ndarray:
     comp = decompose_residual(target, canvas, sigma=sigma)
-    magnitude = np.sqrt(np.sum(comp.high_frequency * comp.high_frequency, axis=2) + 1e-8)
+    magnitude = np.sqrt(
+        np.sum(comp.high_frequency * comp.high_frequency, axis=2) + 1e-8
+    )
     threshold = float(np.quantile(magnitude, 0.60))
     focused = np.clip(magnitude - threshold, 0.0, None).astype(np.float32, copy=False)
-    return gaussian_filter(focused, sigma=1.0, mode="reflect").astype(np.float32, copy=False)
+    return gaussian_filter(focused, sigma=1.0, mode="reflect").astype(
+        np.float32, copy=False
+    )
 
 
 def apply_low_frequency_color_correction(
@@ -261,7 +295,9 @@ def _compute_structure_maps(
     resultant = np.sqrt(mean_ux * mean_ux + mean_uy * mean_uy)
 
     circularity = np.clip(1.0 - resultant, 0.0, 1.0).astype(np.float32, copy=False)
-    linearity = (magnitude * np.clip(resultant, 0.0, 1.0)).astype(np.float32, copy=False)
+    linearity = (magnitude * np.clip(resultant, 0.0, 1.0)).astype(
+        np.float32, copy=False
+    )
     return magnitude, circularity, angle
 
 
@@ -318,7 +354,9 @@ def _initialize_shape_params(
 
     elif shape_type == SHAPE_BEZIER_PATCH:
         patch_scale = float(max(size_x, size_y))
-        shape_params[:4] = np.array([0.25, -0.15, 0.20, -0.10], dtype=np.float32) * patch_scale
+        shape_params[:4] = (
+            np.array([0.25, -0.15, 0.20, -0.10], dtype=np.float32) * patch_scale
+        )
         rotation = float(angle_map[int(center_y), int(center_x)] + np.pi * 0.5)
 
     return rotation, shape_params
@@ -459,7 +497,9 @@ def progressive_growth(
     cycle_results: list[GrowthCycleResult] = []
     events: list[GrowthEvent] = []
 
-    estimated_steps = max(1, len(batch_schedule) * (max_steps_per_cycle + post_add_steps))
+    estimated_steps = max(
+        1, len(batch_schedule) * (max_steps_per_cycle + post_add_steps)
+    )
     mag_map, circ_map, angle_map = _compute_structure_maps(optimizer.target)
 
     for cycle_index, batch_size in enumerate(batch_schedule):
@@ -525,18 +565,21 @@ def progressive_growth(
                     dtype=np.float32,
                 )
 
-            best_candidate: tuple[
-                tuple[float, float],
-                tuple[float, float, float],
-                float,
-                float,
-                int,
-                float,
-                np.ndarray,
-                float,
-                float,
-                float | None,
-            ] | None = None
+            best_candidate: (
+                tuple[
+                    tuple[float, float],
+                    tuple[float, float, float],
+                    float,
+                    float,
+                    int,
+                    float,
+                    np.ndarray,
+                    float,
+                    float,
+                    float | None,
+                ]
+                | None
+            ) = None
 
             accepted = False
             polygon_added = False
@@ -552,21 +595,33 @@ def progressive_growth(
                 target_size = float(region_window)
                 if use_high_frequency_targeting:
                     target_size = float(max(min_new_size, target_size * 0.7))
-                sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
-                sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
+                sx = float(
+                    np.clip(target_size, min_new_size, max_new_size or target_size)
+                )
+                sy = float(
+                    np.clip(target_size, min_new_size, max_new_size or target_size)
+                )
 
-                cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
-                cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
+                cx_i = int(
+                    np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1)
+                )
+                cy_i = int(
+                    np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1)
+                )
 
                 if use_high_frequency_targeting:
                     center_target = optimizer.target[cy_i, cx_i]
                     center_canvas = optimizer.current_canvas[cy_i, cx_i]
                     local_delta = np.clip(center_target - center_canvas, -0.35, 0.35)
                     detail_color = np.clip(center_canvas + 1.4 * local_delta, 0.0, 1.0)
-                    patch_color = (0.25 * patch_color + 0.75 * detail_color).astype(np.float32, copy=False)
+                    patch_color = (0.25 * patch_color + 0.75 * detail_color).astype(
+                        np.float32, copy=False
+                    )
 
                 selected_shape = (
-                    _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
+                    _select_shape_type(
+                        x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map
+                    )
                     if use_content_aware_shapes
                     else shape_type
                 )
@@ -598,7 +653,9 @@ def progressive_growth(
                     rotation=rotation,
                     shape_params=params,
                 )
-                new_loss = _refresh_optimizer_canvas(optimizer, softness=add_eval_softness)
+                new_loss = _refresh_optimizer_canvas(
+                    optimizer, softness=add_eval_softness
+                )
                 new_hf_error: float | None = None
                 if use_high_frequency_targeting:
                     new_hf_error = float(
@@ -644,7 +701,9 @@ def progressive_growth(
                 ):
                     hf_improved = bool(new_hf_error < (base_hf_error - 1e-6))
                     mse_guard = bool(new_loss <= (base_loss + 0.003))
-                    accepted_now = bool((hf_improved and mse_guard) or (new_loss <= base_loss))
+                    accepted_now = bool(
+                        (hf_improved and mse_guard) or (new_loss <= base_loss)
+                    )
 
                 if accepted_now:
                     accepted = True
@@ -652,13 +711,26 @@ def progressive_growth(
                     target_center_used = target_center
                     break
 
-                optimizer.remove_last_polygon(softness=add_eval_softness, record_loss=False)
+                optimizer.remove_last_polygon(
+                    softness=add_eval_softness, record_loss=False
+                )
 
                 x0, y0, x1, y1 = region_box
                 attempt_map[y0:y1, x0:x1] = 0.0
 
             if not accepted and best_candidate is not None:
-                placed_xy, best_color, sx, sy, selected_shape, rotation, params, _, _, best_hf_error = best_candidate
+                (
+                    placed_xy,
+                    best_color,
+                    sx,
+                    sy,
+                    selected_shape,
+                    rotation,
+                    params,
+                    _,
+                    _,
+                    best_hf_error,
+                ) = best_candidate
                 if (
                     use_high_frequency_targeting
                     and base_hf_error is not None
@@ -667,9 +739,15 @@ def progressive_growth(
                 ):
                     continue
 
-                px = int(np.clip(round(placed_xy[0]), 0, optimizer.rasterizer.width - 1))
-                py = int(np.clip(round(placed_xy[1]), 0, optimizer.rasterizer.height - 1))
-                neutral_color = tuple(float(v) for v in optimizer.current_canvas[py, px])
+                px = int(
+                    np.clip(round(placed_xy[0]), 0, optimizer.rasterizer.width - 1)
+                )
+                py = int(
+                    np.clip(round(placed_xy[1]), 0, optimizer.rasterizer.height - 1)
+                )
+                neutral_color = tuple(
+                    float(v) for v in optimizer.current_canvas[py, px]
+                )
 
                 optimizer.add_polygon(
                     center_x=placed_xy[0],
@@ -682,10 +760,14 @@ def progressive_growth(
                     rotation=rotation,
                     shape_params=params,
                 )
-                neutral_loss = _refresh_optimizer_canvas(optimizer, softness=add_eval_softness)
+                neutral_loss = _refresh_optimizer_canvas(
+                    optimizer, softness=add_eval_softness
+                )
 
                 if neutral_loss > base_loss:
-                    optimizer.remove_last_polygon(softness=add_eval_softness, record_loss=False)
+                    optimizer.remove_last_polygon(
+                        softness=add_eval_softness, record_loss=False
+                    )
                     optimizer.add_polygon(
                         center_x=placed_xy[0],
                         center_y=placed_xy[1],
@@ -720,7 +802,10 @@ def progressive_growth(
             events.append(
                 GrowthEvent(
                     cycle_index=cycle_index,
-                    target_region_center=(float(target_center_used[0]), float(target_center_used[1])),
+                    target_region_center=(
+                        float(target_center_used[0]),
+                        float(target_center_used[1]),
+                    ),
                     placed_center=(float(placed[0]), float(placed[1])),
                     distance_to_target=distance,
                 )
@@ -764,7 +849,10 @@ def progressive_growth(
             )
             continue
 
-        if float(optimizer.loss_history[-1]) >= loss_before_cycle and best_cycle_loss < loss_before_cycle:
+        if (
+            float(optimizer.loss_history[-1]) >= loss_before_cycle
+            and best_cycle_loss < loss_before_cycle
+        ):
             optimizer.restore_state(
                 best_polygons.copy(),
                 np.array(best_cycle_canvas, copy=True),
@@ -777,7 +865,10 @@ def progressive_growth(
             if max_recovery_steps is None
             else max(0, int(max_recovery_steps))
         )
-        while float(optimizer.loss_history[-1]) >= loss_before_cycle and recovery_steps < recovery_budget:
+        while (
+            float(optimizer.loss_history[-1]) >= loss_before_cycle
+            and recovery_steps < recovery_budget
+        ):
             optimizer.step(softness=end_softness)
             recovery_steps += 1
 
@@ -813,7 +904,10 @@ def progressive_growth(
                     break
 
             local_recovery = 0
-            while float(optimizer.loss_history[-1]) >= loss_before_cycle and local_recovery < 40:
+            while (
+                float(optimizer.loss_history[-1]) >= loss_before_cycle
+                and local_recovery < 40
+            ):
                 optimizer.step(softness=end_softness)
                 local_recovery += 1
 
@@ -823,15 +917,27 @@ def progressive_growth(
                     optimizer.current_canvas,
                     window=region_window,
                 )
-                cx_i = int(np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1))
-                cy_i = int(np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1))
-                neutral_color = tuple(float(v) for v in optimizer.current_canvas[cy_i, cx_i])
+                cx_i = int(
+                    np.clip(round(target_center[0]), 0, optimizer.rasterizer.width - 1)
+                )
+                cy_i = int(
+                    np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1)
+                )
+                neutral_color = tuple(
+                    float(v) for v in optimizer.current_canvas[cy_i, cx_i]
+                )
                 target_size = float(region_window)
-                sx = float(np.clip(target_size, min_new_size, max_new_size or target_size))
-                sy = float(np.clip(target_size, min_new_size, max_new_size or target_size))
+                sx = float(
+                    np.clip(target_size, min_new_size, max_new_size or target_size)
+                )
+                sy = float(
+                    np.clip(target_size, min_new_size, max_new_size or target_size)
+                )
 
                 selected_shape = (
-                    _select_shape_type(x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map)
+                    _select_shape_type(
+                        x=cx_i, y=cy_i, magnitude_map=mag_map, circularity_map=circ_map
+                    )
                     if use_content_aware_shapes
                     else shape_type
                 )
@@ -932,7 +1038,8 @@ def run_multi_resolution_schedule(
     convergence_window: int = 100,
     convergence_rel_threshold: float = 0.001,
     base_config: LiveOptimizerConfig | None = None,
-    round_definitions: list[tuple[str, int, list[int], tuple[float, float]]] | None = None,
+    round_definitions: list[tuple[str, int, list[int], tuple[float, float]]]
+    | None = None,
 ) -> MultiResolutionResult:
     if target_image.ndim != 3 or target_image.shape[2] != 3:
         raise ValueError("target_image must have shape (H, W, 3)")
@@ -1054,4 +1161,6 @@ def load_square_target(image_path: Path, resolution: int) -> np.ndarray:
         top = (h - side) // 2
         square = rgb.crop((left, top, left + side, top + side))
         resized = square.resize((resolution, resolution), Image.Resampling.LANCZOS)
-        return (np.asarray(resized, dtype=np.float32) / 255.0).astype(np.float32, copy=False)
+        return (np.asarray(resized, dtype=np.float32) / 255.0).astype(
+            np.float32, copy=False
+        )

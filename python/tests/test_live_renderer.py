@@ -43,9 +43,10 @@ def test_batched_soft_compositing_matches_reference() -> None:
         coverage = rasterizer.single_coverage(polygons, idx, softness=1.25)
         effective_alpha = coverage * float(polygons.alphas[idx])
         color = polygons.colors[idx][None, None, :]
-        reference = effective_alpha[:, :, None] * color + (
-            1.0 - effective_alpha[:, :, None]
-        ) * reference
+        reference = (
+            effective_alpha[:, :, None] * color
+            + (1.0 - effective_alpha[:, :, None]) * reference
+        )
 
     assert np.max(np.abs(result.canvas - reference)) < 1e-5
 

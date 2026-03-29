@@ -200,7 +200,11 @@ def build_phase7_plan(
     complexity = float(np.clip(complexity_score, 0.0, 1.0))
     budget = max(1, int(polygon_budget))
 
-    levels = [max(40, int(round(base_resolution * 0.25))), max(64, int(round(base_resolution * 0.5))), int(base_resolution)]
+    levels = [
+        max(40, int(round(base_resolution * 0.25))),
+        max(64, int(round(base_resolution * 0.5))),
+        int(base_resolution),
+    ]
     unique_levels: list[int] = []
     for level in levels:
         if not unique_levels or level != unique_levels[-1]:
@@ -218,10 +222,14 @@ def build_phase7_plan(
 
     rounds: list[Phase7RoundConfig] = []
     for idx, (resolution, count) in enumerate(zip(unique_levels, counts, strict=False)):
-        typical_batch = int(np.clip(round((10.0 - 4.0 * complexity) * (1.0 + 0.15 * idx)), 2, 24))
+        typical_batch = int(
+            np.clip(round((10.0 - 4.0 * complexity) * (1.0 + 0.15 * idx)), 2, 24)
+        )
         schedule = _build_batch_schedule(count, typical_batch)
 
-        max_size = max(4.0, float(resolution) * (0.22 - 0.07 * complexity) * (0.90**idx))
+        max_size = max(
+            4.0, float(resolution) * (0.22 - 0.07 * complexity) * (0.90**idx)
+        )
         min_size = max(1.2, max_size * (0.20 + 0.06 * idx))
 
         rounds.append(
@@ -231,7 +239,9 @@ def build_phase7_plan(
                 batch_schedule=schedule,
                 min_size=float(min_size),
                 max_size=float(max_size),
-                max_steps_per_cycle=int(np.clip(round(18.0 + 34.0 * complexity - 2.0 * idx), 8, 48)),
+                max_steps_per_cycle=int(
+                    np.clip(round(18.0 + 34.0 * complexity - 2.0 * idx), 8, 48)
+                ),
                 post_add_steps=int(np.clip(round(4.0 + 8.0 * complexity), 2, 14)),
                 start_softness=float(max(0.7, 2.2 - 0.35 * idx)),
                 end_softness=float(max(0.25, 0.70 - 0.10 * idx)),
@@ -321,11 +331,15 @@ def make_polygon_outline_preview(
     polygon_resolution: int,
     output_resolution: int,
 ) -> np.ndarray:
-    canvas = Image.new("RGB", (output_resolution, output_resolution), color=(255, 255, 255))
+    canvas = Image.new(
+        "RGB", (output_resolution, output_resolution), color=(255, 255, 255)
+    )
     draw = ImageDraw.Draw(canvas)
 
     if polygons.count == 0:
-        return (np.asarray(canvas, dtype=np.float32) / 255.0).astype(np.float32, copy=False)
+        return (np.asarray(canvas, dtype=np.float32) / 255.0).astype(
+            np.float32, copy=False
+        )
 
     scale = float(output_resolution) / max(float(polygon_resolution), 1.0)
     major_sizes = np.maximum(polygons.sizes[:, 0], polygons.sizes[:, 1]) * scale
@@ -371,8 +385,20 @@ def make_polygon_outline_preview(
             start_deg = float(np.degrees(polygons.shape_params[idx, 0]))
             end_deg = float(np.degrees(polygons.shape_params[idx, 1]))
 
-            draw.arc((cx - outer_r, cy - outer_r, cx + outer_r, cy + outer_r), start=start_deg, end=end_deg, fill=color, width=1)
-            draw.arc((cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r), start=start_deg, end=end_deg, fill=color, width=1)
+            draw.arc(
+                (cx - outer_r, cy - outer_r, cx + outer_r, cy + outer_r),
+                start=start_deg,
+                end=end_deg,
+                fill=color,
+                width=1,
+            )
+            draw.arc(
+                (cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r),
+                start=start_deg,
+                end=end_deg,
+                fill=color,
+                width=1,
+            )
 
             a0 = float(polygons.shape_params[idx, 0])
             a1 = float(polygons.shape_params[idx, 1])
@@ -424,10 +450,14 @@ def handle_phase7_control_key(
         controls.correction_requested = True
         return "residual-correction"
     if normalized in {"+", "="}:
-        controls.softness_scale = float(np.clip(controls.softness_scale * 1.1, 0.2, 3.0))
+        controls.softness_scale = float(
+            np.clip(controls.softness_scale * 1.1, 0.2, 3.0)
+        )
         return "softness-up"
     if normalized in {"-", "_"}:
-        controls.softness_scale = float(np.clip(controls.softness_scale / 1.1, 0.2, 3.0))
+        controls.softness_scale = float(
+            np.clip(controls.softness_scale / 1.1, 0.2, 3.0)
+        )
         return "softness-down"
 
     return "noop"
@@ -448,7 +478,9 @@ def execute_phase7_schedule(
         raise ValueError("target_image must have shape (H, W, 3)")
 
     base_resolution = int(target_image.shape[0])
-    deadline = time.monotonic() + max(0.0, float(minutes) * 60.0) if minutes > 0.0 else None
+    deadline = (
+        time.monotonic() + max(0.0, float(minutes) * 60.0) if minutes > 0.0 else None
+    )
     hard_deadline = (
         time.monotonic() + float(hard_timeout_seconds)
         if hard_timeout_seconds is not None and hard_timeout_seconds > 0.0
@@ -502,7 +534,9 @@ def execute_phase7_schedule(
             break
 
         target_level = _resize_rgb(target_image, round_cfg.resolution)
-        rasterizer = SoftRasterizer(height=round_cfg.resolution, width=round_cfg.resolution)
+        rasterizer = SoftRasterizer(
+            height=round_cfg.resolution, width=round_cfg.resolution
+        )
 
         if polygons is None:
             polygons = make_random_live_batch_with_bounds(
@@ -522,8 +556,12 @@ def execute_phase7_schedule(
                 )
                 global_losses.append(float(preview_optimizer.loss_history[-1]))
                 total_iteration_points = len(global_losses)
-                final_canvas = _resize_rgb(preview_optimizer.current_canvas, base_resolution)
-                final_loss = float(np.mean((target_image - final_canvas) ** 2, dtype=np.float32))
+                final_canvas = _resize_rgb(
+                    preview_optimizer.current_canvas, base_resolution
+                )
+                final_loss = float(
+                    np.mean((target_image - final_canvas) ** 2, dtype=np.float32)
+                )
                 shared_update_callback(
                     final_canvas,
                     polygons,
@@ -559,7 +597,10 @@ def execute_phase7_schedule(
                 break
             if _deadline_reached():
                 break
-            if max_total_steps is not None and total_iteration_points >= max_total_steps:
+            if (
+                max_total_steps is not None
+                and total_iteration_points >= max_total_steps
+            ):
                 break
 
             while controls.paused and not controls.quit_requested:
@@ -572,7 +613,9 @@ def execute_phase7_schedule(
                         optimizer,
                         sigma=10.0,
                         strength=0.7,
-                        softness=max(0.2, round_cfg.end_softness * controls.softness_scale),
+                        softness=max(
+                            0.2, round_cfg.end_softness * controls.softness_scale
+                        ),
                     )
                     controls.correction_requested = False
 
@@ -656,13 +699,19 @@ def execute_phase7_schedule(
             total_iteration_points = len(global_losses)
 
             if max_total_steps is not None and total_iteration_points > max_total_steps:
-                global_losses = global_losses[: max_total_steps]
+                global_losses = global_losses[:max_total_steps]
                 total_iteration_points = len(global_losses)
 
             full_canvas = _resize_rgb(optimizer.current_canvas, base_resolution)
-            loss_value = float(np.mean((target_image - full_canvas) ** 2, dtype=np.float32))
+            loss_value = float(
+                np.mean((target_image - full_canvas) ** 2, dtype=np.float32)
+            )
             remaining_for_status = _remaining_seconds()
-            remaining_text = "n/a" if remaining_for_status is None else f"{remaining_for_status:.1f}s"
+            remaining_text = (
+                "n/a"
+                if remaining_for_status is None
+                else f"{remaining_for_status:.1f}s"
+            )
 
             status = (
                 f"{round_cfg.name} | polygons={optimizer.polygons.count} | "
@@ -686,7 +735,9 @@ def execute_phase7_schedule(
         polygons = optimizer.polygons.copy()
         previous_resolution = int(round_cfg.resolution)
         final_canvas = _resize_rgb(optimizer.current_canvas, base_resolution)
-        final_loss = float(np.mean((target_image - final_canvas) ** 2, dtype=np.float32))
+        final_loss = float(
+            np.mean((target_image - final_canvas) ** 2, dtype=np.float32)
+        )
 
         if controls.quit_requested:
             break
@@ -697,7 +748,9 @@ def execute_phase7_schedule(
 
     shared_update_callback(
         final_canvas,
-        polygons if polygons is not None else LivePolygonBatch(
+        polygons
+        if polygons is not None
+        else LivePolygonBatch(
             centers=np.zeros((0, 2), dtype=np.float32),
             sizes=np.zeros((0, 2), dtype=np.float32),
             rotations=np.zeros((0,), dtype=np.float32),
@@ -706,7 +759,9 @@ def execute_phase7_schedule(
             shape_types=np.zeros((0,), dtype=np.int32),
             shape_params=np.zeros((0, 6), dtype=np.float32),
         ),
-        previous_resolution if previous_resolution is not None else target_image.shape[0],
+        previous_resolution
+        if previous_resolution is not None
+        else target_image.shape[0],
         global_losses,
         resolution_markers,
         batch_markers,
@@ -804,13 +859,19 @@ def run_phase7_live_display(
 
     shared = _SharedViewState(
         target=np.array(target_image, copy=True),
-        segmentation_map=None if segmentation_map is None else np.array(segmentation_map, copy=True),
+        segmentation_map=None
+        if segmentation_map is None
+        else np.array(segmentation_map, copy=True),
         canvas=np.array(empty_canvas, copy=True),
         signed_residual=_signed_residual_rgb(target_image, empty_canvas),
         abs_residual=_absolute_residual_rgb(target_image, empty_canvas),
         mse_residual=_mse_residual_rgb(target_image, empty_canvas),
-        polygon_preview=make_polygon_outline_preview(empty_poly, polygon_resolution=resolution, output_resolution=resolution),
-        loss_history=[float(np.mean((target_image - empty_canvas) ** 2, dtype=np.float32))],
+        polygon_preview=make_polygon_outline_preview(
+            empty_poly, polygon_resolution=resolution, output_resolution=resolution
+        ),
+        loss_history=[
+            float(np.mean((target_image - empty_canvas) ** 2, dtype=np.float32))
+        ],
         resolution_markers=[],
         batch_markers=[],
         round_name="initializing",
@@ -1031,9 +1092,17 @@ def run_phase7_live_display(
         marker_artists.clear()
 
         for idx in res_markers:
-            marker_artists.append(ax_loss.axvline(int(idx), linestyle="--", color="gray", alpha=0.8, linewidth=1.1))
+            marker_artists.append(
+                ax_loss.axvline(
+                    int(idx), linestyle="--", color="gray", alpha=0.8, linewidth=1.1
+                )
+            )
         for idx in batch_marks:
-            marker_artists.append(ax_loss.axvline(int(idx), linestyle="-", color="#ff8c42", alpha=0.20, linewidth=0.8))
+            marker_artists.append(
+                ax_loss.axvline(
+                    int(idx), linestyle="-", color="#ff8c42", alpha=0.20, linewidth=0.8
+                )
+            )
 
         status_text.set_text(
             "\n".join(
@@ -1085,7 +1154,9 @@ def run_phase7_live_display(
 
     return Phase7ExecutionResult(
         final_canvas=canvas,
-        final_loss=float(losses[-1]) if losses else float(np.mean((target_image - canvas) ** 2, dtype=np.float32)),
+        final_loss=float(losses[-1])
+        if losses
+        else float(np.mean((target_image - canvas) ** 2, dtype=np.float32)),
         polygon_count=poly_count,
         iterations=len(losses),
         loss_history=losses,

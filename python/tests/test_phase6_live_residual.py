@@ -12,7 +12,9 @@ from src.live_schedule import (
 
 
 def _hybrid_target(size: int = 64) -> np.ndarray:
-    yy, xx = np.meshgrid(np.linspace(0.0, 1.0, size), np.linspace(0.0, 1.0, size), indexing="ij")
+    yy, xx = np.meshgrid(
+        np.linspace(0.0, 1.0, size), np.linspace(0.0, 1.0, size), indexing="ij"
+    )
     smooth = np.stack(
         [
             0.3 + 0.5 * xx,
@@ -22,8 +24,12 @@ def _hybrid_target(size: int = 64) -> np.ndarray:
         axis=2,
     ).astype(np.float32)
 
-    checker = np.sign(np.sin(2.0 * np.pi * xx * 10.0) * np.sin(2.0 * np.pi * yy * 10.0)).astype(np.float32)
-    blob = np.exp(-(((xx - 0.70) ** 2) + ((yy - 0.38) ** 2)) / (2.0 * 0.10**2)).astype(np.float32)
+    checker = np.sign(
+        np.sin(2.0 * np.pi * xx * 10.0) * np.sin(2.0 * np.pi * yy * 10.0)
+    ).astype(np.float32)
+    blob = np.exp(-(((xx - 0.70) ** 2) + ((yy - 0.38) ** 2)) / (2.0 * 0.10**2)).astype(
+        np.float32
+    )
     local_mask = np.clip(blob, 0.0, 1.0)
     hf = np.zeros_like(smooth)
     hf[..., 0] = 0.08 * checker * local_mask
@@ -96,7 +102,12 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         config=config,
     )
     raw_start = float(raw_optimizer.loss_history[-1])
-    raw_hf_start = float(np.mean(high_frequency_error_map(target, raw_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
+    raw_hf_start = float(
+        np.mean(
+            high_frequency_error_map(target, raw_optimizer.current_canvas, sigma=10.0),
+            dtype=np.float32,
+        )
+    )
     progressive_growth(
         raw_optimizer,
         batch_schedule=[12],
@@ -118,7 +129,12 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         end_softness=0.6,
     )
     raw_drop = raw_start - float(raw_optimizer.loss_history[-1])
-    raw_hf_drop = raw_hf_start - float(np.mean(high_frequency_error_map(target, raw_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
+    raw_hf_drop = raw_hf_start - float(
+        np.mean(
+            high_frequency_error_map(target, raw_optimizer.current_canvas, sigma=10.0),
+            dtype=np.float32,
+        )
+    )
 
     hf_optimizer = LiveJointOptimizer(
         target_image=target,
@@ -127,7 +143,12 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         config=config,
     )
     hf_start = float(hf_optimizer.loss_history[-1])
-    hf_hf_start = float(np.mean(high_frequency_error_map(target, hf_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
+    hf_hf_start = float(
+        np.mean(
+            high_frequency_error_map(target, hf_optimizer.current_canvas, sigma=10.0),
+            dtype=np.float32,
+        )
+    )
     progressive_growth(
         hf_optimizer,
         batch_schedule=[12],
@@ -149,7 +170,12 @@ def test_phase6_residual_decomposition_and_targeting() -> None:
         end_softness=0.6,
     )
     hf_drop = hf_start - float(hf_optimizer.loss_history[-1])
-    hf_hf_drop = hf_hf_start - float(np.mean(high_frequency_error_map(target, hf_optimizer.current_canvas, sigma=10.0), dtype=np.float32))
+    hf_hf_drop = hf_hf_start - float(
+        np.mean(
+            high_frequency_error_map(target, hf_optimizer.current_canvas, sigma=10.0),
+            dtype=np.float32,
+        )
+    )
 
     assert hf_hf_drop >= (raw_hf_drop - 1e-3)
     assert hf_drop > (raw_drop - 0.02)
