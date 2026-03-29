@@ -1,7 +1,13 @@
 import numpy as np
+import pytest
 
 from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
-from src.live_renderer import LivePolygonBatch, SHAPE_QUAD, SoftRasterizer
+from src.live_renderer import (
+    LivePolygonBatch,
+    SHAPE_ELLIPSE,
+    SHAPE_QUAD,
+    SoftRasterizer,
+)
 
 
 def _make_rect_target(
@@ -68,3 +74,62 @@ def test_joint_optimizer_color_and_position_converge_on_simple_rectangle() -> No
 
     assert increases <= 3
     assert losses[-1] < losses[0]
+
+
+def test_color_gradient_respects_occlusion_transmittance() -> None:
+    height = width = 48
+    target = np.zeros((height, width, 3), dtype=np.float32)
+
+    count = 5
+    polygons = LivePolygonBatch(
+        centers=np.tile(np.array([[24.0, 24.0]], dtype=np.float32), (count, 1)),
+        sizes=np.tile(np.array([[11.0, 11.0]], dtype=np.float32), (count, 1)),
+        rotations=np.zeros((count,), dtype=np.float32),
+        colors=np.tile(np.array([[0.9, 0.2, 0.2]], dtype=np.float32), (count, 1)),
+        alphas=np.full((count,), 0.70, dtype=np.float32),
+        shape_types=np.full((count,), SHAPE_ELLIPSE, dtype=np.int32),
+    )
+
+    rasterizer = SoftRasterizer(height=height, width=width)
+    optimizer = LiveJointOptimizer(
+        target_image=target,
+        rasterizer=rasterizer,
+        polygons=polygons,
+        config=LiveOptimizerConfig(
+            color_lr=0.02,
+            position_lr=0.0,
+            size_lr=0.0,
+            rotation_lr=0.0,
+            alpha_lr=0.0,
+            position_update_interval=0,
+            size_update_interval=0,
+            max_fd_polygons=0,
+        ),
+    )
+
+    for _ in range(50):
+        optimizer.step(softness=1.0)
+
+    forward = rasterizer.forward_pass(
+        optimizer.polygons,
+        softness=1.0,
+        chunk_size=50,
+        checkpoint_stride=10,
+        target=target,
+        compute_gradients=True,
+    )
+    assert forward.grad_colors is not None
+
+    grad_norms = np.linalg.norm(forward.grad_colors, axis=1)
+    bottom = float(grad_norms[0])
+    top = float(grad_norms[-1])
+    assert top > 0.0
+    assert bottom < top
+
+    render = rasterizer.render(optimizer.polygons, softness=1.0)
+    per_poly_weight = np.sum(render.weights, axis=(1, 2), dtype=np.float32)
+    expected_ratio = float(per_poly_weight[0] / max(per_poly_weight[-1], 1e-8))
+    observed_ratio = float(bottom / top)
+
+    assert observed_ratio < 0.75
+    assert observed_ratio == pytest.approx(expected_ratio, rel=0.35, abs=0.02)
