@@ -295,9 +295,6 @@ def _compute_structure_maps(
     resultant = np.sqrt(mean_ux * mean_ux + mean_uy * mean_uy)
 
     circularity = np.clip(1.0 - resultant, 0.0, 1.0).astype(np.float32, copy=False)
-    linearity = (magnitude * np.clip(resultant, 0.0, 1.0)).astype(
-        np.float32, copy=False
-    )
     return magnitude, circularity, angle
 
 
@@ -745,8 +742,10 @@ def progressive_growth(
                 py = int(
                     np.clip(round(placed_xy[1]), 0, optimizer.rasterizer.height - 1)
                 )
-                neutral_color = tuple(
-                    float(v) for v in optimizer.current_canvas[py, px]
+                neutral_color = (
+                    float(optimizer.current_canvas[py, px, 0]),
+                    float(optimizer.current_canvas[py, px, 1]),
+                    float(optimizer.current_canvas[py, px, 2]),
                 )
 
                 optimizer.add_polygon(
@@ -923,8 +922,10 @@ def progressive_growth(
                 cy_i = int(
                     np.clip(round(target_center[1]), 0, optimizer.rasterizer.height - 1)
                 )
-                neutral_color = tuple(
-                    float(v) for v in optimizer.current_canvas[cy_i, cx_i]
+                neutral_color = (
+                    float(optimizer.current_canvas[cy_i, cx_i, 0]),
+                    float(optimizer.current_canvas[cy_i, cx_i, 1]),
+                    float(optimizer.current_canvas[cy_i, cx_i, 2]),
                 )
                 target_size = float(region_window)
                 sx = float(
@@ -1077,9 +1078,11 @@ def run_multi_resolution_schedule(
                 rng=rng,
             )
         else:
+            if previous_resolution is None:
+                raise RuntimeError("previous_resolution missing during polygon scaling")
             polygons = _scale_polygons_to_resolution(
                 polygons,
-                old_resolution=int(previous_resolution),
+                old_resolution=previous_resolution,
                 new_resolution=resolution,
             )
 

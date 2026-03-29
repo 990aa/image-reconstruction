@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -41,7 +41,9 @@ class LivePolygonBatch:
     colors: np.ndarray
     alphas: np.ndarray
     shape_types: np.ndarray
-    shape_params: np.ndarray | None = None
+    shape_params: np.ndarray = field(
+        default_factory=lambda: np.zeros((0, 6), dtype=np.float32)
+    )
 
     def __post_init__(self) -> None:
         self.centers = np.ascontiguousarray(self.centers, dtype=np.float32)
@@ -50,7 +52,7 @@ class LivePolygonBatch:
         self.colors = np.ascontiguousarray(self.colors, dtype=np.float32)
         self.alphas = np.ascontiguousarray(self.alphas, dtype=np.float32)
         self.shape_types = np.ascontiguousarray(self.shape_types, dtype=np.int32)
-        if self.shape_params is None:
+        if self.shape_params.size == 0 and self.centers.shape[0] > 0:
             self.shape_params = np.zeros((self.centers.shape[0], 6), dtype=np.float32)
         self.shape_params = np.ascontiguousarray(self.shape_params, dtype=np.float32)
 
