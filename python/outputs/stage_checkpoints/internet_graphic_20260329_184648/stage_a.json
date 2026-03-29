@@ -1,0 +1,17 @@
+{
+  "stage": "A",
+  "image_path": "outputs/stage_checkpoints/internet_graphic_20260329_184648/stage_a.png",
+  "global_iteration": 277.0,
+  "stage_iteration": 275.0,
+  "stage_start_loss": 149.48728942871094,
+  "stage_position_updates": 55.0,
+  "polygon_count": 64.0,
+  "rgb_mse": 0.13238726556301117,
+  "resolution": 100.0,
+  "elapsed_seconds": 56.63109160005115,
+  "softness": 0.8,
+  "rmse": 0.36385060885342924,
+  "psnr_db": 8.781537880209205,
+  "ssim": 0.40109655261039734,
+  "lab_mse": 431.28936767578125
+}
