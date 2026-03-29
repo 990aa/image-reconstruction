@@ -21,7 +21,7 @@ from matplotlib.animation import FuncAnimation
 from scipy.ndimage import gaussian_filter
 
 from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
-from src.live_renderer import SHAPE_ELLIPSE, LivePolygonBatch, SoftRasterizer
+from src.live_renderer import SHAPE_ELLIPSE, SHAPE_QUAD, LivePolygonBatch, SoftRasterizer
 
 
 @dataclass(frozen=True)
@@ -150,14 +150,13 @@ def _grid_initialized_batch(
 
     cell_w = max(1.0, float(w) / max(cols, 1))
     cell_h = max(1.0, float(h) / max(rows, 1))
-    base_size = float(max(cell_w, cell_h) * 1.2)
 
     centers = np.zeros((count, 2), dtype=np.float32)
     sizes = np.zeros((count, 2), dtype=np.float32)
     rotations = np.zeros((count,), dtype=np.float32)
     colors = np.zeros((count, 3), dtype=np.float32)
     alphas = np.full((count,), float(alpha), dtype=np.float32)
-    shape_types = np.full((count,), SHAPE_ELLIPSE, dtype=np.int32)
+    shape_types = np.full((count,), SHAPE_QUAD, dtype=np.int32)
     shape_params = np.zeros((count, 6), dtype=np.float32)
 
     idx = 0
@@ -174,11 +173,18 @@ def _grid_initialized_batch(
             cy = int(np.clip((y0 + y1) // 2, 0, h - 1))
 
             centers[idx] = np.array([cx, cy], dtype=np.float32)
-            sizes[idx] = np.array([base_size, base_size], dtype=np.float32)
+            sx = max(1.0, 0.5 * float(max(1, x1 - x0)))
+            sy = max(1.0, 0.5 * float(max(1, y1 - y0)))
+            sizes[idx] = np.array([sx, sy], dtype=np.float32)
             patch = target[y0:y1, x0:x1]
             if patch.size == 0:
                 colors[idx] = np.array(
-                    _region_mean_color(target, cx, cy, max(2, int(round(base_size * 0.5)))),
+                    _region_mean_color(
+                        target,
+                        cx,
+                        cy,
+                        max(2, int(round(max(cell_w, cell_h) * 0.5))),
+                    ),
                     dtype=np.float32,
                 )
             else:
