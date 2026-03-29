@@ -86,8 +86,8 @@ def build_phase7_plan(
     budget = max(120, int(polygon_budget))
     scale = float(np.clip(budget / 240.0, 0.7, 3.0))
 
-    a_count = int(round(40 * min(scale, 1.5)))
-    b_total = int(round(80 * scale))
+    a_count = int(round(0.33 * budget))
+    b_total = int(round(0.33 * budget))
     c_total = max(40, budget - a_count - b_total)
 
     b_batches = 8
@@ -99,13 +99,13 @@ def build_phase7_plan(
         stage_b_batches=b_batches,
         stage_b_batch_size=max(1, int(np.ceil(b_total / b_batches))),
         stage_b_steps_per_batch=200,
-        stage_b_size_start=25.0,
-        stage_b_size_end=10.0,
+        stage_b_size_start=18.0,
+        stage_b_size_end=6.0,
         stage_c_batches=c_batches,
         stage_c_batch_size=max(1, int(np.ceil(c_total / c_batches))),
         stage_c_steps_per_batch=50,
-        stage_c_size_start=10.0,
-        stage_c_size_end=5.0,
+        stage_c_size_start=6.0,
+        stage_c_size_end=2.0,
         stage_d_steps=1000,
     )
 
@@ -265,7 +265,7 @@ def _add_targeted_batch(
             size_y=float(size_px),
             color=color_hint,
             alpha=float(alpha),
-            shape_type=SHAPE_ELLIPSE,
+            shape_type=SHAPE_QUAD,
             rotation=0.0,
         )
 
@@ -484,7 +484,7 @@ def execute_phase7_schedule(
             target=target,
             batch_size=int(stage_b_batch_size),
             size_px=size_px,
-            alpha=0.80,
+            alpha=0.95,
             high_frequency=False,
         )
         batch_markers.append(len(loss_history))
@@ -528,7 +528,7 @@ def execute_phase7_schedule(
             target=target,
             batch_size=int(stage_c_batch_size),
             size_px=size_px,
-            alpha=0.75,
+            alpha=0.90,
             high_frequency=True,
         )
         batch_markers.append(len(loss_history))
