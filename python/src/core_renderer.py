@@ -112,11 +112,18 @@ class CoreRenderer:
         )
         self.grid_x = xx
         self.grid_y = yy
+        self._logged_first_render_softness = False
 
     @staticmethod
     def _sigmoid(values: np.ndarray) -> np.ndarray:
         clipped = np.clip(values, -60.0, 60.0)
         return (1.0 / (1.0 + np.exp(-clipped))).astype(np.float32, copy=False)
+
+    def _log_first_softness(self, softness: float, call_name: str) -> None:
+        if self._logged_first_render_softness:
+            return
+        self._logged_first_render_softness = True
+        print(f"[core_renderer] first {call_name} softness={float(softness):.4f}")
 
     def _ellipse_coverage_params(
         self,
@@ -169,6 +176,36 @@ class CoreRenderer:
         d = np.maximum(np.abs(dx) / ax, np.abs(dy) / ay)
         logits = (1.0 - d) / max(float(softness), 1e-6)
         return self._sigmoid(logits)
+
+    def _triangle_coverage_params(
+        self,
+        *,
+        center_x: float,
+        center_y: float,
+        axis_x: float,
+        axis_y: float,
+        rotation: float,
+        softness: float,
+    ) -> np.ndarray:
+        sx = max(float(axis_x), 1e-3)
+        sy = max(float(axis_y), 1e-3)
+
+        local = np.array(
+            [
+                [sx, 0.0],
+                [-0.5 * sx, 0.5 * sy],
+                [-0.5 * sx, -0.5 * sy],
+            ],
+            dtype=np.float32,
+        )
+
+        cos_t = float(np.cos(rotation))
+        sin_t = float(np.sin(rotation))
+        rot = np.array([[cos_t, -sin_t], [sin_t, cos_t]], dtype=np.float32)
+        verts = local @ rot.T
+        verts[:, 0] += float(center_x)
+        verts[:, 1] += float(center_y)
+        return self.triangle_coverage_from_vertices(verts, softness)
 
     def triangle_coverage_from_vertices(
         self,
@@ -224,6 +261,16 @@ class CoreRenderer:
                 softness=softness,
             )
 
+        if shape_type == SHAPE_TRIANGLE:
+            return self._triangle_coverage_params(
+                center_x=cx,
+                center_y=cy,
+                axis_x=sx,
+                axis_y=sy,
+                rotation=rot,
+                softness=softness,
+            )
+
         return self._ellipse_coverage_params(
             center_x=cx,
             center_y=cy,
@@ -252,6 +299,7 @@ class CoreRenderer:
         softness: float,
         chunk_size: int = 50,
     ) -> SoftRenderResult:
+        self._log_first_softness(softness, "render")
         n = polygons.count
         cov = self.coverage_batch(polygons, softness=softness, chunk_size=chunk_size)
 
@@ -292,6 +340,7 @@ class CoreRenderer:
         target: np.ndarray | None = None,
         compute_gradients: bool = False,
     ) -> ForwardPassResult:
+        self._log_first_softness(softness, "forward_pass")
         n = polygons.count
         canvas = np.ones((self.height, self.width, 3), dtype=np.float32)
         checkpoints: dict[int, np.ndarray] = {0: np.array(canvas, copy=True)}
@@ -384,6 +433,15 @@ class CoreRenderer:
             shape_type = int(polygons.shape_types[idx])
             if shape_type == SHAPE_QUAD:
                 cov = self._quad_coverage_params(
+                    center_x=cx,
+                    center_y=cy,
+                    axis_x=sx,
+                    axis_y=sy,
+                    rotation=rot,
+                    softness=softness,
+                )
+            elif shape_type == SHAPE_TRIANGLE:
+                cov = self._triangle_coverage_params(
                     center_x=cx,
                     center_y=cy,
                     axis_x=sx,
