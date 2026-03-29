@@ -827,6 +827,7 @@ def execute_phase7_schedule(
     controls: Phase7ControlState,
     shared_update_callback,
     max_total_steps: int | None,
+    stage_checkpoint_callback=None,
 ) -> Phase7ExecutionResult:
     if target_image.ndim != 3 or target_image.shape[2] != 3:
         raise ValueError("target_image must have shape (H, W, 3)")
@@ -929,6 +930,7 @@ def execute_phase7_schedule(
     stage_iteration = 0
     stage_start_loss = float(loss_history[-1])
     stage_position_updates = 0
+    active_stage_name: str | None = None
 
     def _display_canvas() -> np.ndarray:
         canvas = np.array(optimizer.current_canvas, copy=True)
@@ -984,11 +986,16 @@ def execute_phase7_schedule(
         nonlocal stage_iteration
         nonlocal stage_start_loss
         nonlocal stage_position_updates
+        nonlocal active_stage_name
+
+        if active_stage_name is not None:
+            _emit_stage_checkpoint(active_stage_name)
 
         stage_markers.append((stage_name, len(loss_history)))
         stage_iteration = 0
         stage_start_loss = float(optimizer.loss_history[-1])
         stage_position_updates = 0
+        active_stage_name = stage_name
 
     def _stage_step_callback(_stage_name: str, position_triggered: bool) -> None:
         nonlocal stage_iteration
@@ -996,6 +1003,24 @@ def execute_phase7_schedule(
         stage_iteration += 1
         if position_triggered:
             stage_position_updates += 1
+
+    def _emit_stage_checkpoint(stage_name: str) -> None:
+        if stage_checkpoint_callback is None:
+            return
+        canvas = _display_canvas()
+        metrics = {
+            "stage": stage_name,
+            "global_iteration": int(len(loss_history)),
+            "stage_iteration": int(stage_iteration),
+            "stage_start_loss": float(stage_start_loss),
+            "stage_position_updates": int(stage_position_updates),
+            "polygon_count": int(optimizer.polygons.count),
+            "rgb_mse": float(_rgb_mse(target_full, canvas)),
+            "resolution": int(current_resolution),
+            "elapsed_seconds": float(time.monotonic() - start_time),
+            "softness": float(controls.latest_softness),
+        }
+        stage_checkpoint_callback(stage_name, canvas, metrics)
 
     def _shape_distribution_summary() -> str:
         if optimizer.polygons.count <= 0:
@@ -1536,6 +1561,24 @@ def execute_phase7_schedule(
     final_canvas = _display_canvas()
     final_rgb_mse = _rgb_mse(target_full, final_canvas)
 
+    if active_stage_name is not None:
+        _emit_stage_checkpoint(active_stage_name)
+
+    if stage_checkpoint_callback is not None:
+        final_metrics = {
+            "stage": "final",
+            "global_iteration": int(len(loss_history)),
+            "stage_iteration": int(stage_iteration),
+            "stage_start_loss": float(stage_start_loss),
+            "stage_position_updates": int(stage_position_updates),
+            "polygon_count": int(optimizer.polygons.count),
+            "rgb_mse": float(final_rgb_mse),
+            "resolution": int(current_resolution),
+            "elapsed_seconds": float(time.monotonic() - start_time),
+            "softness": float(controls.latest_softness),
+        }
+        stage_checkpoint_callback("final", final_canvas, final_metrics)
+
     shared_update_callback(
         final_canvas,
         _display_polygons(),
@@ -1575,6 +1618,7 @@ def run_phase7_headless(
     minutes: float,
     hard_timeout_seconds: float | None = None,
     max_total_steps: int | None = None,
+    stage_checkpoint_callback=None,
 ) -> Phase7ExecutionResult:
     del segmentation_map
     controls = Phase7ControlState()
@@ -1607,6 +1651,7 @@ def run_phase7_headless(
         controls=controls,
         shared_update_callback=_noop_update,
         max_total_steps=max_total_steps,
+        stage_checkpoint_callback=stage_checkpoint_callback,
     )
 
 
@@ -1779,6 +1824,7 @@ def run_phase7_live_display(
     update_interval_ms: int = 2000,
     close_after_seconds: float | None = None,
     max_total_steps: int | None = None,
+    stage_checkpoint_callback=None,
 ) -> Phase7ExecutionResult:
     target = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
     h, w = target.shape[:2]
@@ -1862,6 +1908,7 @@ def run_phase7_live_display(
             controls=controls,
             shared_update_callback=_update_shared,
             max_total_steps=max_total_steps,
+            stage_checkpoint_callback=stage_checkpoint_callback,
         )
 
     worker = threading.Thread(target=_worker, daemon=True)

@@ -1,0 +1,55 @@
+{
+  "run_id": "phase7_input_20260329_182350",
+  "image_path": "C:/Users/ahada/AppData/Local/Temp/pytest-of-ahada/pytest-30/test_phase7_cli_no_display_run0/phase7_input.png",
+  "fit_mode": "crop",
+  "resolution": 96,
+  "minutes": 0.1,
+  "seed": 9,
+  "polygons": 180,
+  "iterations": 16,
+  "accepted_polygons": 64,
+  "final_metrics": {
+    "rgb_mse": 0.004048822447657585,
+    "rmse": 0.06363035790923689,
+    "psnr_db": 23.926712678582305,
+    "ssim": 0.8919960856437683,
+    "lab_mse": 50.82686233520508
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "A",
+      "image_path": "outputs/stage_checkpoints/phase7_input_20260329_182350/stage_a.png",
+      "global_iteration": 16.0,
+      "stage_iteration": 15.0,
+      "stage_start_loss": 523.0455932617188,
+      "stage_position_updates": 3.0,
+      "polygon_count": 64.0,
+      "rgb_mse": 0.004048822447657585,
+      "resolution": 48.0,
+      "elapsed_seconds": 6.858999999938533,
+      "softness": 1.04,
+      "rmse": 0.06363035790923689,
+      "psnr_db": 23.926712678582305,
+      "ssim": 0.8919960856437683,
+      "lab_mse": 50.82686233520508
+    },
+    {
+      "stage": "final",
+      "image_path": "outputs/stage_checkpoints/phase7_input_20260329_182350/stage_final.png",
+      "global_iteration": 16.0,
+      "stage_iteration": 15.0,
+      "stage_start_loss": 523.0455932617188,
+      "stage_position_updates": 3.0,
+      "polygon_count": 64.0,
+      "rgb_mse": 0.004048822447657585,
+      "resolution": 48.0,
+      "elapsed_seconds": 6.875,
+      "softness": 1.04,
+      "rmse": 0.06363035790923689,
+      "psnr_db": 23.926712678582305,
+      "ssim": 0.8919960856437683,
+      "lab_mse": 50.82686233520508
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/phase7_input_20260329_182350"
+}

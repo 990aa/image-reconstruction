@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import json
+import math
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from skimage.metrics import structural_similarity
 
 from src.live_phase7 import (
     build_phase7_plan,
     run_phase7_headless,
     run_phase7_live_display,
 )
+from src.mse import mean_squared_error, perceptual_mse_lab
 from src.preprocessing import preprocess_target_array
 
 
@@ -84,7 +89,44 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Compatibility/testing override for maximum optimizer iteration points.",
     )
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=Path,
+        default=Path("outputs") / "stage_checkpoints",
+        help="Directory where per-stage checkpoint images/metrics are written.",
+    )
     return parser
+
+
+def _to_uint8(image: np.ndarray) -> np.ndarray:
+    return np.clip(np.round(image * 255.0), 0, 255).astype(np.uint8)
+
+
+def _save_rgb(path: Path, image: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(_to_uint8(image), mode="RGB").save(path)
+
+
+def _accuracy_metrics(target: np.ndarray, canvas: np.ndarray) -> dict[str, float]:
+    rgb_mse = float(mean_squared_error(canvas, target))
+    rmse = float(np.sqrt(max(rgb_mse, 0.0)))
+    psnr = float("inf") if rgb_mse <= 1e-12 else float(10.0 * math.log10(1.0 / rgb_mse))
+    ssim = float(
+        structural_similarity(
+            np.clip(target, 0.0, 1.0),
+            np.clip(canvas, 0.0, 1.0),
+            channel_axis=2,
+            data_range=1.0,
+        )
+    )
+    lab_mse = float(perceptual_mse_lab(canvas, target))
+    return {
+        "rgb_mse": rgb_mse,
+        "rmse": rmse,
+        "psnr_db": psnr,
+        "ssim": ssim,
+        "lab_mse": lab_mse,
+    }
 
 
 def _resolve_fit_mode(
@@ -304,6 +346,40 @@ def main() -> int:
         eta_seconds=eta_seconds,
     )
 
+    run_stamp = time.strftime("%Y%m%d_%H%M%S")
+    run_dir = args.checkpoint_dir / f"{args.image_path.stem.lower()}_{run_stamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    stage_records: list[dict[str, object]] = []
+
+    def _stage_checkpoint_callback(
+        stage_name: str,
+        canvas: np.ndarray,
+        metrics: dict[str, float | int | str],
+    ) -> None:
+        stage_slug = "".join(
+            ch.lower() if (ch.isalnum() or ch in {"_", "-"}) else "_"
+            for ch in stage_name
+        )
+        img_path = run_dir / f"stage_{stage_slug}.png"
+        _save_rgb(img_path, canvas)
+
+        acc = _accuracy_metrics(preprocessed.target_rgb, canvas)
+        payload: dict[str, object] = {
+            "stage": stage_name,
+            "image_path": str(img_path.as_posix()),
+            **{k: (float(v) if isinstance(v, (int, float)) else v) for k, v in metrics.items()},
+            **acc,
+        }
+
+        stage_json = run_dir / f"stage_{stage_slug}.json"
+        stage_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        stage_records.append(payload)
+        print(
+            f"[checkpoint] {stage_name}: rgb_mse={acc['rgb_mse']:.6f}, "
+            f"ssim={acc['ssim']:.4f}, saved={img_path.as_posix()}"
+        )
+
     if args.no_display:
         result = run_phase7_headless(
             target_image=preprocessed.target_rgb,
@@ -313,10 +389,11 @@ def main() -> int:
             minutes=float(args.minutes),
             hard_timeout_seconds=hard_timeout_seconds,
             max_total_steps=args.iterations,
+            stage_checkpoint_callback=_stage_checkpoint_callback,
         )
     else:
         print("Launching staged single-optimizer live visualization...")
-        print("Controls: P/S/E/R/Q, 1/2/3, V, G, D, +/-")
+        print("Controls: P/S/E/R/Q, 1/2/3, V, G, D, +/-, X")
         result = run_phase7_live_display(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,
@@ -327,12 +404,19 @@ def main() -> int:
             update_interval_ms=args.update_interval_ms,
             close_after_seconds=args.close_after_seconds,
             max_total_steps=args.iterations,
+            stage_checkpoint_callback=_stage_checkpoint_callback,
         )
+
+    final_metrics = _accuracy_metrics(preprocessed.target_rgb, result.final_canvas)
 
     print("=== Run Summary ===")
     print(f"final_iteration: {result.iterations}")
     print(f"accepted_polygons: {result.polygon_count}")
     print(f"final_mse: {result.final_loss:.6f}")
+    print(f"final_rgb_mse: {final_metrics['rgb_mse']:.6f}")
+    print(f"final_lab_mse: {final_metrics['lab_mse']:.6f}")
+    print(f"final_psnr_db: {final_metrics['psnr_db']:.3f}")
+    print(f"final_ssim: {final_metrics['ssim']:.5f}")
     initial_mse = float(
         np.mean(
             (preprocessed.target_rgb - np.ones_like(preprocessed.target_rgb)) ** 2,
@@ -340,6 +424,31 @@ def main() -> int:
         )
     )
     print(f"mse_improvement: {initial_mse - result.final_loss:.6f}")
+
+    run_metrics = {
+        "run_id": f"{args.image_path.stem.lower()}_{run_stamp}",
+        "image_path": str(args.image_path.as_posix()),
+        "fit_mode": fit_mode,
+        "resolution": int(args.resolution),
+        "minutes": float(args.minutes),
+        "seed": int(args.seed),
+        "polygons": int(polygon_budget),
+        "iterations": int(result.iterations),
+        "accepted_polygons": int(result.polygon_count),
+        "final_metrics": final_metrics,
+        "stage_checkpoints": stage_records,
+        "run_dir": str(run_dir.as_posix()),
+    }
+    run_metrics_path = run_dir / "run_metrics.json"
+    run_metrics_path.write_text(json.dumps(run_metrics, indent=2), encoding="utf-8")
+
+    registry_path = args.checkpoint_dir / "accuracy_registry.jsonl"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    with registry_path.open("a", encoding="utf-8") as registry_file:
+        registry_file.write(json.dumps(run_metrics) + "\n")
+
+    print(f"metrics_json: {run_metrics_path.as_posix()}")
+    print(f"checkpoint_dir: {run_dir.as_posix()}")
 
     return 0
 
