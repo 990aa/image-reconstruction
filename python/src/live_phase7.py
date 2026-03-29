@@ -888,8 +888,8 @@ def execute_phase7_schedule(
     optimizer.config = replace(
         optimizer.config,
         color_lr=0.015,
-        position_update_interval=1,
-        max_fd_polygons=None,
+        position_update_interval=2,
+        max_fd_polygons=20,
     )
     _run_stage_steps(
         optimizer=optimizer,
@@ -969,7 +969,7 @@ def execute_phase7_schedule(
         optimizer.config = replace(
             optimizer.config,
             position_update_interval=1,
-            max_fd_polygons=None,
+            max_fd_polygons=30,
         )
         _run_stage_steps(
             optimizer=optimizer,
@@ -1077,7 +1077,7 @@ def execute_phase7_schedule(
         optimizer.config,
         color_lr=0.02,
         position_update_interval=1,
-        max_fd_polygons=None,
+        max_fd_polygons=40,
     )
     _run_stage_steps(
         optimizer=optimizer,
