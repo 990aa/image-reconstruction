@@ -380,6 +380,8 @@ def execute_phase7_schedule(
         runtime_scale = float(np.clip((minutes * 60.0) / 300.0, 0.10, 2.0))
 
     def _scaled_count(value: int, *, minimum: int) -> int:
+        if value <= 0:
+            return 0
         return max(minimum, int(round(float(value) * runtime_scale)))
 
     stage_a_steps = _scaled_count(int(plan.stage_a_steps), minimum=20)
