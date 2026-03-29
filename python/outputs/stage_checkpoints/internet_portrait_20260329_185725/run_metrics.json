@@ -1,0 +1,72 @@
+{
+  "run_id": "internet_portrait_20260329_185725",
+  "image_path": "targets/internet_portrait.jpg",
+  "fit_mode": "crop",
+  "resolution": 200,
+  "minutes": 5.0,
+  "seed": 11,
+  "polygons": 208,
+  "iterations": 850,
+  "accepted_polygons": 92,
+  "final_metrics": {
+    "rgb_mse": 0.043707240372896194,
+    "rmse": 0.20906276658672676,
+    "psnr_db": 13.5944661352083,
+    "ssim": 0.19683225452899933,
+    "lab_mse": 182.3616180419922
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "A",
+      "image_path": "outputs/stage_checkpoints/internet_portrait_20260329_185725/stage_a.png",
+      "global_iteration": 277.0,
+      "stage_iteration": 275.0,
+      "stage_start_loss": 328.007080078125,
+      "stage_position_updates": 55.0,
+      "polygon_count": 64.0,
+      "rgb_mse": 0.10886386781930923,
+      "resolution": 100.0,
+      "elapsed_seconds": 86.11255929991603,
+      "softness": 0.8,
+      "rmse": 0.3299452497298745,
+      "psnr_db": 9.631162397163328,
+      "ssim": 0.14867384731769562,
+      "lab_mse": 439.8553466796875
+    },
+    {
+      "stage": "B",
+      "image_path": "outputs/stage_checkpoints/internet_portrait_20260329_185725/stage_b.png",
+      "global_iteration": 850.0,
+      "stage_iteration": 573.0,
+      "stage_start_loss": 427.01080322265625,
+      "stage_position_updates": 9.0,
+      "polygon_count": 92.0,
+      "rgb_mse": 0.043707240372896194,
+      "resolution": 100.0,
+      "elapsed_seconds": 303.83750629995484,
+      "softness": 0.34,
+      "rmse": 0.20906276658672676,
+      "psnr_db": 13.5944661352083,
+      "ssim": 0.19683225452899933,
+      "lab_mse": 182.3616180419922
+    },
+    {
+      "stage": "final",
+      "image_path": "outputs/stage_checkpoints/internet_portrait_20260329_185725/stage_final.png",
+      "global_iteration": 850.0,
+      "stage_iteration": 573.0,
+      "stage_start_loss": 427.01080322265625,
+      "stage_position_updates": 9.0,
+      "polygon_count": 92.0,
+      "rgb_mse": 0.043707240372896194,
+      "resolution": 100.0,
+      "elapsed_seconds": 303.8780322999228,
+      "softness": 0.34,
+      "rmse": 0.20906276658672676,
+      "psnr_db": 13.5944661352083,
+      "ssim": 0.19683225452899933,
+      "lab_mse": 182.3616180419922
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/internet_portrait_20260329_185725"
+}

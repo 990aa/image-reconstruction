@@ -1,0 +1,17 @@
+{
+  "stage": "final",
+  "image_path": "outputs/stage_checkpoints/internet_portrait_20260329_185725/stage_final.png",
+  "global_iteration": 850.0,
+  "stage_iteration": 573.0,
+  "stage_start_loss": 427.01080322265625,
+  "stage_position_updates": 9.0,
+  "polygon_count": 92.0,
+  "rgb_mse": 0.043707240372896194,
+  "resolution": 100.0,
+  "elapsed_seconds": 303.8780322999228,
+  "softness": 0.34,
+  "rmse": 0.20906276658672676,
+  "psnr_db": 13.5944661352083,
+  "ssim": 0.19683225452899933,
+  "lab_mse": 182.3616180419922
+}
