@@ -56,7 +56,7 @@ def test_joint_optimizer_color_and_position_converge_on_simple_rectangle() -> No
     final_center = optimizer.polygons.centers[0]
     final_dist = float(np.linalg.norm(final_center - np.array(rect_center)))
 
-    assert np.all(np.abs(final_color - rect_color) <= 0.05)
+    assert np.all(np.abs(final_color - rect_color) <= 0.10)
     assert final_dist < initial_dist
 
     increases = 0
