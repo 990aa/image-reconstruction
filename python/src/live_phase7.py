@@ -479,12 +479,16 @@ def execute_phase7_schedule(
             plan.stage_b_size_start
             + (plan.stage_b_size_end - plan.stage_b_size_start) * t
         )
+        checkpoint_len = len(loss_history)
+        checkpoint_loss = float(optimizer.loss_history[-1])
+        checkpoint_polygons = optimizer.polygons.copy()
+        checkpoint_canvas = np.array(optimizer.current_canvas, copy=True)
         _add_targeted_batch(
             optimizer,
             target=target,
             batch_size=int(stage_b_batch_size),
             size_px=size_px,
-            alpha=0.95,
+            alpha=0.50,
             high_frequency=False,
         )
         batch_markers.append(len(loss_history))
@@ -508,6 +512,17 @@ def execute_phase7_schedule(
             total_points=len(loss_history),
         )
         _extend_history(done)
+        if float(optimizer.loss_history[-1]) > checkpoint_loss:
+            optimizer.restore_state(
+                checkpoint_polygons,
+                checkpoint_canvas,
+                checkpoint_loss,
+                record_loss=False,
+            )
+            del loss_history[checkpoint_len:]
+            if batch_markers and batch_markers[-1] >= checkpoint_len:
+                batch_markers.pop()
+            _emit("B")
 
     # Stage C: high-frequency detail additions.
     if not controls.quit_requested and not _deadline_reached():
@@ -523,12 +538,16 @@ def execute_phase7_schedule(
             plan.stage_c_size_start
             + (plan.stage_c_size_end - plan.stage_c_size_start) * t
         )
+        checkpoint_len = len(loss_history)
+        checkpoint_loss = float(optimizer.loss_history[-1])
+        checkpoint_polygons = optimizer.polygons.copy()
+        checkpoint_canvas = np.array(optimizer.current_canvas, copy=True)
         _add_targeted_batch(
             optimizer,
             target=target,
             batch_size=int(stage_c_batch_size),
             size_px=size_px,
-            alpha=0.90,
+            alpha=0.40,
             high_frequency=True,
         )
         batch_markers.append(len(loss_history))
@@ -552,6 +571,17 @@ def execute_phase7_schedule(
             total_points=len(loss_history),
         )
         _extend_history(done)
+        if float(optimizer.loss_history[-1]) > checkpoint_loss:
+            optimizer.restore_state(
+                checkpoint_polygons,
+                checkpoint_canvas,
+                checkpoint_loss,
+                record_loss=False,
+            )
+            del loss_history[checkpoint_len:]
+            if batch_markers and batch_markers[-1] >= checkpoint_len:
+                batch_markers.pop()
+            _emit("C")
 
     # Stage D: global refinement with position updates for all polygons.
     if not controls.quit_requested and not _deadline_reached():

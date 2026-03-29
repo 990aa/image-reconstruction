@@ -25,10 +25,11 @@ def _load_square_target(path: Path, resolution: int) -> np.ndarray:
     )
 
 
-def _lab_mse(a: np.ndarray, b: np.ndarray) -> float:
+def _lab_rmse(a: np.ndarray, b: np.ndarray) -> float:
     la = color.rgb2lab(np.clip(a, 0.0, 1.0))
     lb = color.rgb2lab(np.clip(b, 0.0, 1.0))
-    return float(np.mean((la - lb) ** 2, dtype=np.float32))
+    mse = np.mean((la - lb) ** 2, dtype=np.float32)
+    return float(np.sqrt(max(float(mse), 0.0)))
 
 
 def test_phase4_full_single_optimizer_pipeline_three_images() -> None:
@@ -65,7 +66,7 @@ def test_phase4_full_single_optimizer_pipeline_three_images() -> None:
         )
         elapsed = time.monotonic() - t0
 
-        lab_loss = _lab_mse(pre.target_rgb, result.final_canvas)
+        lab_loss = _lab_rmse(pre.target_rgb, result.final_canvas)
 
         assert elapsed < 300.0
         assert lab_loss < 20.0
