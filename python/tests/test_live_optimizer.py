@@ -133,3 +133,55 @@ def test_color_gradient_respects_occlusion_transmittance() -> None:
 
     assert observed_ratio < 0.75
     assert observed_ratio == pytest.approx(expected_ratio, rel=0.35, abs=0.02)
+
+
+def test_step_rolls_back_geometry_without_reverting_color() -> None:
+    height = width = 50
+    target, rect_center, _ = _make_rect_target(height, width)
+
+    polygons = LivePolygonBatch(
+        centers=np.array([[rect_center[0], rect_center[1]]], dtype=np.float32),
+        sizes=np.array([[10.0, 10.0]], dtype=np.float32),
+        rotations=np.array([0.0], dtype=np.float32),
+        colors=np.array([[0.95, 0.05, 0.05]], dtype=np.float32),
+        alphas=np.array([1.0], dtype=np.float32),
+        shape_types=np.array([SHAPE_QUAD], dtype=np.int32),
+    )
+
+    optimizer = LiveJointOptimizer(
+        target_image=target,
+        rasterizer=SoftRasterizer(height=height, width=width),
+        polygons=polygons,
+        config=LiveOptimizerConfig(
+            color_lr=0.05,
+            alpha_lr=0.0,
+            position_lr=25.0,
+            size_lr=0.0,
+            position_update_interval=1,
+            size_update_interval=0,
+            max_fd_polygons=1,
+            allow_loss_increase=False,
+        ),
+    )
+
+    start_loss = float(optimizer.loss_history[-1])
+    start_centers = np.array(optimizer.polygons.centers, copy=True)
+    start_colors = np.array(optimizer.polygons.colors, copy=True)
+
+    def _forced_bad_geometry(
+        *, softness: float, checkpoints: dict[int, np.ndarray], indices: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        del softness
+        del checkpoints
+        pos = np.zeros_like(optimizer.polygons.centers, dtype=np.float32)
+        if indices.size > 0:
+            pos[indices] = np.array([250.0, -250.0], dtype=np.float32)
+        size = np.zeros_like(optimizer.polygons.sizes, dtype=np.float32)
+        return pos, size
+
+    optimizer._fd_geometry_grads = _forced_bad_geometry  # type: ignore[method-assign]
+    end_loss = float(optimizer.step(softness=1.0))
+
+    assert end_loss < start_loss
+    assert np.allclose(optimizer.polygons.centers, start_centers)
+    assert not np.allclose(optimizer.polygons.colors, start_colors)
