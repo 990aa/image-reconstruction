@@ -150,6 +150,80 @@ def make_random_live_batch_with_bounds(
     )
 
 
+def make_grid_seeded_batch(
+    *,
+    target: np.ndarray,
+    count: int,
+    alpha: float = 0.85,
+    overlap_scale: float = 0.75,
+) -> LivePolygonBatch:
+    if target.ndim != 3 or target.shape[2] != 3:
+        raise ValueError("target must have shape (H, W, 3)")
+    if count < 0:
+        raise ValueError("count must be non-negative")
+    if count == 0:
+        return make_empty_live_batch()
+
+    h, w = target.shape[:2]
+    cols = max(1, int(np.ceil(np.sqrt(float(count)))))
+    rows = max(1, int(np.ceil(float(count) / float(cols))))
+
+    x_edges = np.linspace(0, w, cols + 1, dtype=np.int32)
+    y_edges = np.linspace(0, h, rows + 1, dtype=np.int32)
+
+    centers = np.zeros((count, 2), dtype=np.float32)
+    sizes = np.zeros((count, 2), dtype=np.float32)
+    rotations = np.zeros((count,), dtype=np.float32)
+    colors = np.zeros((count, 3), dtype=np.float32)
+    alphas = np.full((count,), float(np.clip(alpha, 0.0, 1.0)), dtype=np.float32)
+    shape_types = np.full((count,), SHAPE_ELLIPSE, dtype=np.int32)
+    shape_params = np.zeros((count, 6), dtype=np.float32)
+
+    idx = 0
+    for row in range(rows):
+        for col in range(cols):
+            if idx >= count:
+                break
+
+            x0 = int(x_edges[col])
+            x1 = int(x_edges[col + 1])
+            y0 = int(y_edges[row])
+            y1 = int(y_edges[row + 1])
+
+            if x1 <= x0:
+                x1 = min(w, x0 + 1)
+            if y1 <= y0:
+                y1 = min(h, y0 + 1)
+
+            cx = float(np.clip(0.5 * (x0 + x1 - 1), 0.0, w - 1.0))
+            cy = float(np.clip(0.5 * (y0 + y1 - 1), 0.0, h - 1.0))
+            centers[idx] = np.array([cx, cy], dtype=np.float32)
+
+            # Keep neighboring ellipses slightly overlapping in each grid cell.
+            sx = max(1.0, float(x1 - x0) * float(overlap_scale))
+            sy = max(1.0, float(y1 - y0) * float(overlap_scale))
+            sizes[idx] = np.array([sx, sy], dtype=np.float32)
+
+            patch = target[y0:y1, x0:x1]
+            if patch.size == 0:
+                px = target[int(round(cy)), int(round(cx))]
+                colors[idx] = px.astype(np.float32, copy=False)
+            else:
+                colors[idx] = patch.mean(axis=(0, 1), dtype=np.float32)
+
+            idx += 1
+
+    return LivePolygonBatch(
+        centers=centers,
+        sizes=sizes,
+        rotations=rotations,
+        colors=colors,
+        alphas=alphas,
+        shape_types=shape_types,
+        shape_params=shape_params,
+    )
+
+
 def _resize_rgb(image: np.ndarray, resolution: int) -> np.ndarray:
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError("image must have shape (H, W, 3)")
@@ -1097,7 +1171,7 @@ def run_multi_resolution_schedule(
         raise ValueError("target_image must have shape (H, W, 3)")
 
     cfg = LiveOptimizerConfig() if base_config is None else base_config
-    rng = np.random.default_rng(random_seed)
+    _ = random_seed
 
     if round_definitions is None:
         rounds = [
@@ -1120,13 +1194,11 @@ def run_multi_resolution_schedule(
         rasterizer = SoftRasterizer(height=resolution, width=resolution)
 
         if polygons is None:
-            polygons = make_random_live_batch_with_bounds(
-                count=20,
-                height=resolution,
-                width=resolution,
-                min_size=size_bounds[0],
-                max_size=size_bounds[1],
-                rng=rng,
+            initial_count = 24 if resolution <= 50 else 20
+            polygons = make_grid_seeded_batch(
+                target=target_level,
+                count=initial_count,
+                alpha=0.85,
             )
         else:
             if previous_resolution is None:
@@ -1141,9 +1213,9 @@ def run_multi_resolution_schedule(
             cfg,
             min_size=size_bounds[0],
             max_size=size_bounds[1],
-            max_fd_polygons=cfg.max_fd_polygons,
-            position_update_interval=cfg.position_update_interval,
-            size_update_interval=cfg.size_update_interval,
+            max_fd_polygons=(None if resolution <= 100 else 40),
+            position_update_interval=1,
+            size_update_interval=3,
         )
 
         optimizer = LiveJointOptimizer(

@@ -32,6 +32,7 @@ from src.core_renderer import (
     SoftRasterizer,
 )
 from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
+from src.live_schedule import make_grid_seeded_batch
 
 
 @dataclass(frozen=True)
@@ -887,6 +888,9 @@ def execute_phase7_schedule(
 
     resolution_schedule = _progressive_resolutions(full_w)
 
+    def _max_fd_for_resolution(resolution: int) -> int | None:
+        return None if int(resolution) <= 100 else 40
+
     def _target_at_resolution(resolution: int) -> np.ndarray:
         if resolution == full_w and full_h == full_w:
             return target_full
@@ -899,10 +903,10 @@ def execute_phase7_schedule(
     optimizer = LiveJointOptimizer(
         target_image=target_level,
         rasterizer=SoftRasterizer(height=current_resolution, width=current_resolution),
-        polygons=_grid_initialized_batch(
-            target_level,
+        polygons=make_grid_seeded_batch(
+            target=target_level,
             count=int(plan.stage_a_initial_polygons),
-            alpha=0.90,
+            alpha=0.85,
         ),
         config=LiveOptimizerConfig(
             color_lr=0.05,
@@ -910,8 +914,9 @@ def execute_phase7_schedule(
             size_lr=0.30,
             rotation_lr=0.02,
             alpha_lr=0.01,
-            position_update_interval=20,
-            max_fd_polygons=40,
+            position_update_interval=1,
+            size_update_interval=3,
+            max_fd_polygons=_max_fd_for_resolution(current_resolution),
             render_chunk_size=50,
             checkpoint_stride=10,
             min_size=3.0,
@@ -1204,7 +1209,12 @@ def execute_phase7_schedule(
                 height=current_resolution, width=current_resolution
             ),
             polygons=scaled,
-            config=replace(optimizer.config),
+            config=replace(
+                optimizer.config,
+                position_update_interval=1,
+                size_update_interval=3,
+                max_fd_polygons=_max_fd_for_resolution(current_resolution),
+            ),
         )
 
         loss_history.append(float(optimizer.loss_history[-1]))
@@ -1219,9 +1229,9 @@ def execute_phase7_schedule(
     _begin_stage("A")
     optimizer.config = replace(
         optimizer.config,
-        position_update_interval=0,
-        size_update_interval=0,
-        max_fd_polygons=12,
+        position_update_interval=1,
+        size_update_interval=3,
+        max_fd_polygons=_max_fd_for_resolution(current_resolution),
     )
     _run_stage_steps(
         optimizer=optimizer,
@@ -1244,8 +1254,8 @@ def execute_phase7_schedule(
         optimizer.config,
         color_lr=0.015,
         position_update_interval=1,
-        size_update_interval=0,
-        max_fd_polygons=10,
+        size_update_interval=3,
+        max_fd_polygons=_max_fd_for_resolution(current_resolution),
     )
     _run_stage_steps(
         optimizer=optimizer,
@@ -1320,8 +1330,9 @@ def execute_phase7_schedule(
         optimizer.config = replace(
             optimizer.config,
             color_lr=0.04,
-            position_update_interval=0,
-            max_fd_polygons=40,
+            position_update_interval=1,
+            size_update_interval=3,
+            max_fd_polygons=_max_fd_for_resolution(current_resolution),
         )
         _run_stage_steps(
             optimizer=optimizer,
@@ -1341,7 +1352,8 @@ def execute_phase7_schedule(
         optimizer.config = replace(
             optimizer.config,
             position_update_interval=1,
-            max_fd_polygons=30,
+            size_update_interval=3,
+            max_fd_polygons=_max_fd_for_resolution(current_resolution),
         )
         _run_stage_steps(
             optimizer=optimizer,
@@ -1443,8 +1455,9 @@ def execute_phase7_schedule(
         optimizer.config = replace(
             optimizer.config,
             color_lr=0.03,
-            position_update_interval=0,
-            max_fd_polygons=40,
+            position_update_interval=1,
+            size_update_interval=3,
+            max_fd_polygons=_max_fd_for_resolution(current_resolution),
         )
         _run_stage_steps(
             optimizer=optimizer,
@@ -1503,8 +1516,8 @@ def execute_phase7_schedule(
         color_lr=0.015,
         position_lr=0.80,
         position_update_interval=1,
-        size_update_interval=1,
-        max_fd_polygons=None,
+        size_update_interval=3,
+        max_fd_polygons=_max_fd_for_resolution(current_resolution),
         allow_loss_increase=False,
     )
 
