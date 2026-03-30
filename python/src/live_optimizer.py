@@ -9,6 +9,7 @@ from src.core_renderer import (
     SHAPE_ELLIPSE,
     ForwardPassResult,
     LivePolygonBatch,
+    SoftRenderResult,
     SoftRasterizer,
 )
 
@@ -48,6 +49,14 @@ class _AdamState:
         self.m = np.zeros(shape, dtype=np.float32)
         self.v = np.zeros(shape, dtype=np.float32)
         self.t = 0
+
+    def snapshot(self) -> tuple[np.ndarray, np.ndarray, int]:
+        return (np.array(self.m, copy=True), np.array(self.v, copy=True), int(self.t))
+
+    def restore(self, snapshot: tuple[np.ndarray, np.ndarray, int]) -> None:
+        self.m = np.array(snapshot[0], copy=True)
+        self.v = np.array(snapshot[1], copy=True)
+        self.t = int(snapshot[2])
 
     def step(self, grad: np.ndarray, lr: float) -> np.ndarray:
         self.t += 1
@@ -136,6 +145,27 @@ class LiveJointOptimizer:
             target=self.target if compute_gradients else None,
             compute_gradients=compute_gradients,
         )
+
+    def _render(self, softness: float) -> SoftRenderResult:
+        return self.rasterizer.render(
+            self.polygons,
+            softness=float(max(softness, 1e-3)),
+            chunk_size=self.config.render_chunk_size,
+        )
+
+    def _color_gradient(self, render: SoftRenderResult) -> np.ndarray:
+        if render.canvas.shape != self.target.shape:
+            raise ValueError("render canvas shape must match target")
+        if render.effective_alpha.shape != render.trans_after.shape:
+            raise ValueError("render visibility tensors must have matching shapes")
+
+        residual = render.canvas - self.target
+        weights = render.trans_after * render.effective_alpha
+        scale = 2.0 / float(self.target.size)
+        return (
+            scale
+            * np.einsum("nhw,hwc->nc", weights, residual, dtype=np.float32)
+        ).astype(np.float32, copy=False)
 
     def _select_fd_indices(self, canvas: np.ndarray) -> np.ndarray:
         n = self.polygons.count
@@ -346,40 +376,50 @@ class LiveJointOptimizer:
         if softness <= 0.0:
             raise ValueError("softness must be positive")
 
-        baseline_state = self._forward(float(softness), compute_gradients=True)
-        baseline_canvas = baseline_state.canvas
+        baseline_render = self._render(float(softness))
+        baseline_canvas = baseline_render.canvas
         baseline_loss = self._loss(baseline_canvas)
 
         old_colors = np.array(self.polygons.colors, copy=True)
         old_alphas = np.array(self.polygons.alphas, copy=True)
+        color_adam_snapshot = self._color_adam.snapshot()
+        alpha_adam_snapshot = self._alpha_adam.snapshot()
 
-        if baseline_state.grad_colors is None or baseline_state.grad_alphas is None:
-            raise RuntimeError("forward pass did not produce gradients")
+        grad_colors = self._color_gradient(baseline_render)
+        grad_alphas: np.ndarray | None = None
+        if self.config.alpha_lr > 0.0:
+            alpha_state = self._forward(float(softness), compute_gradients=True)
+            if alpha_state.grad_alphas is None:
+                raise RuntimeError("forward pass did not produce alpha gradients")
+            grad_alphas = alpha_state.grad_alphas
 
         self.polygons.colors = np.clip(
             self.polygons.colors
-            - self._color_adam.step(baseline_state.grad_colors, self.config.color_lr),
+            - self._color_adam.step(grad_colors, self.config.color_lr),
             0.0,
             1.0,
         ).astype(np.float32, copy=False)
 
-        self.polygons.alphas = np.clip(
-            self.polygons.alphas
-            - self._alpha_adam.step(baseline_state.grad_alphas, self.config.alpha_lr),
-            self.config.min_alpha,
-            self.config.max_alpha,
-        ).astype(np.float32, copy=False)
+        if grad_alphas is not None:
+            self.polygons.alphas = np.clip(
+                self.polygons.alphas
+                - self._alpha_adam.step(grad_alphas, self.config.alpha_lr),
+                self.config.min_alpha,
+                self.config.max_alpha,
+            ).astype(np.float32, copy=False)
 
-        color_state = self._forward(float(softness), compute_gradients=False)
-        color_canvas = color_state.canvas
+        color_render = self._render(float(softness))
+        color_canvas = color_render.canvas
         color_loss = self._loss(color_canvas)
 
         if (not self.config.allow_loss_increase) and color_loss > baseline_loss:
             self.polygons.colors = old_colors
             self.polygons.alphas = old_alphas
+            self._color_adam.restore(color_adam_snapshot)
+            self._alpha_adam.restore(alpha_adam_snapshot)
             color_canvas = baseline_canvas
             color_loss = float(baseline_loss)
-            color_state = baseline_state
+            color_render = baseline_render
 
         run_position = self.config.position_update_interval > 0 and (
             self.step_count % self.config.position_update_interval == 0
@@ -395,7 +435,10 @@ class LiveJointOptimizer:
         if run_geometry and self.polygons.count > 0:
             old_centers = np.array(self.polygons.centers, copy=True)
             old_sizes = np.array(self.polygons.sizes, copy=True)
-            old_rotations = np.array(self.polygons.rotations, copy=True)
+            position_adam_snapshot = self._position_adam.snapshot()
+            size_adam_snapshot = self._size_adam.snapshot()
+
+            color_state = self._forward(float(softness), compute_gradients=False)
 
             fd_indices = self._select_fd_indices(color_canvas)
             pos_grad, size_grad = self._fd_geometry_grads(
@@ -436,7 +479,8 @@ class LiveJointOptimizer:
             if (not self.config.allow_loss_increase) and geometry_loss > color_loss:
                 self.polygons.centers = old_centers
                 self.polygons.sizes = old_sizes
-                self.polygons.rotations = old_rotations
+                self._position_adam.restore(position_adam_snapshot)
+                self._size_adam.restore(size_adam_snapshot)
                 final_canvas = color_canvas
                 final_loss = float(color_loss)
             else:

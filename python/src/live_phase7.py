@@ -27,12 +27,18 @@ from scipy.ndimage import gaussian_filter
 from src.core_renderer import (
     SHAPE_ELLIPSE,
     SHAPE_QUAD,
+    SHAPE_THIN_STROKE,
     SHAPE_TRIANGLE,
     LivePolygonBatch,
     SoftRasterizer,
 )
 from src.live_optimizer import LiveJointOptimizer, LiveOptimizerConfig
-from src.live_schedule import make_grid_seeded_batch
+from src.live_schedule import (
+    _compute_structure_maps,
+    _initialize_shape_params,
+    make_grid_seeded_batch,
+    sample_diverse_error_regions,
+)
 
 
 @dataclass(frozen=True)
@@ -117,38 +123,23 @@ def build_phase7_plan(
     complexity_score: float,
 ) -> Phase7Plan:
     del base_resolution
-
-    budget = max(128, int(polygon_budget))
-    complexity = float(np.clip(complexity_score, 0.0, 1.0))
-
-    a_count = 64
-    b_total = int(
-        round(np.clip((0.24 + 0.12 * complexity) * budget, 64.0, 96.0))
-    )
-    c_total = max(40, budget - a_count - b_total)
-
-    b_batches = 8
-    c_batches = 12
-
-    b_size_start = 25.0
-    b_size_end = 8.0
-    c_size_start = 10.0
-    c_size_end = 3.0
+    del polygon_budget
+    del complexity_score
 
     return Phase7Plan(
-        stage_a_initial_polygons=max(20, a_count),
-        stage_a_steps=400,
-        stage_b_batches=b_batches,
-        stage_b_batch_size=max(1, int(np.ceil(b_total / b_batches))),
-        stage_b_steps_per_batch=151,
-        stage_b_size_start=float(b_size_start),
-        stage_b_size_end=float(b_size_end),
-        stage_c_batches=c_batches,
-        stage_c_batch_size=max(1, int(np.ceil(c_total / c_batches))),
+        stage_a_initial_polygons=24,
+        stage_a_steps=200,
+        stage_b_batches=10,
+        stage_b_batch_size=8,
+        stage_b_steps_per_batch=200,
+        stage_b_size_start=18.0,
+        stage_b_size_end=8.0,
+        stage_c_batches=8,
+        stage_c_batch_size=6,
         stage_c_steps_per_batch=150,
-        stage_c_size_start=float(c_size_start),
-        stage_c_size_end=float(c_size_end),
-        stage_d_steps=600,
+        stage_c_size_start=15.0,
+        stage_c_size_end=5.0,
+        stage_d_steps=80,
     )
 
 
@@ -271,6 +262,33 @@ def _lab_residual_map(target: np.ndarray, canvas: np.ndarray) -> np.ndarray:
     canvas_lab = skcolor.rgb2lab(np.clip(canvas, 0.0, 1.0)).astype(np.float32, copy=False)
     residual = np.mean(np.abs(target_lab - canvas_lab), axis=2, dtype=np.float32)
     return np.clip(residual / 120.0, 0.0, 1.0).astype(np.float32, copy=False)
+
+
+def _select_round_shape_type(
+    *,
+    stage_name: str,
+    x: int,
+    y: int,
+    structure_map: np.ndarray,
+    circularity_map: np.ndarray,
+) -> int:
+    structure = float(structure_map[y, x])
+    circularity = float(circularity_map[y, x])
+
+    if stage_name == "A":
+        return SHAPE_ELLIPSE
+    if stage_name == "B":
+        return SHAPE_TRIANGLE if structure >= 0.30 else SHAPE_ELLIPSE
+    if stage_name == "C":
+        if structure >= 0.60 and circularity < 0.30:
+            return SHAPE_THIN_STROKE
+        return SHAPE_TRIANGLE if structure >= 0.30 else SHAPE_ELLIPSE
+    return SHAPE_TRIANGLE if structure >= 0.30 else SHAPE_ELLIPSE
+
+
+def _mean_lab_rgb(weighted_lab: np.ndarray) -> np.ndarray:
+    rgb = skcolor.lab2rgb(weighted_lab.reshape(1, 1, 3)).reshape(3)
+    return np.clip(rgb, 0.0, 1.0).astype(np.float32, copy=False)
 
 
 def _build_structure_guidance(target: np.ndarray) -> _StructureGuidance:
@@ -462,6 +480,7 @@ def _apply_residual_color_correction(
 def _add_targeted_batch(
     optimizer: LiveJointOptimizer,
     *,
+    stage_name: str,
     target: np.ndarray,
     batch_size: int,
     size_min_px: float,
@@ -471,9 +490,9 @@ def _add_targeted_batch(
     high_frequency: bool,
     rng: np.random.Generator,
     error_map: np.ndarray | None = None,
-    structure_guidance: _StructureGuidance | None = None,
-    clustered: bool = False,
-    allow_shape_routing: bool = False,
+    structure_map: np.ndarray | None = None,
+    circularity_map: np.ndarray | None = None,
+    angle_map: np.ndarray | None = None,
 ) -> None:
     if batch_size <= 0:
         return
@@ -485,25 +504,33 @@ def _add_targeted_batch(
     else:
         err = _lab_residual_map(target, optimizer.current_canvas)
 
-    radius = max(2, int(round(size_max_px * 0.8)))
-    if clustered:
-        centers = _clustered_error_centers(
-            err,
-            k=batch_size,
-            rng=rng,
-            suppression_radius=max(2, radius // 2),
-        )
-    else:
-        centers = _top_error_centers(err, k=batch_size, radius=radius)
-    if not centers:
+    sampled_regions = sample_diverse_error_regions(
+        target,
+        optimizer.current_canvas,
+        count=batch_size,
+        window=5,
+        top_k=50,
+        guide_map=err,
+        rng=rng,
+    )
+    if not sampled_regions:
         return
 
-    values = np.array([err[cy, cx] for cx, cy in centers], dtype=np.float32)
+    centers = [
+        (
+            int(np.clip(round(center[0]), 0, target.shape[1] - 1)),
+            int(np.clip(round(center[1]), 0, target.shape[0] - 1)),
+            region_box,
+            patch_color,
+        )
+        for center, region_box, patch_color in sampled_regions
+    ]
+    values = np.array([err[cy, cx] for cx, cy, _, _ in centers], dtype=np.float32)
     vmax = float(np.max(values)) if values.size else 1.0
     vmin = float(np.min(values)) if values.size else 0.0
     denom = max(vmax - vmin, 1e-6)
 
-    for idx, (cx, cy) in enumerate(centers):
+    for idx, (cx, cy, region_box, patch_color) in enumerate(centers):
         score = float((values[idx] - vmin) / denom)
         if high_frequency:
             size_px = float(size_max_px - (size_max_px - size_min_px) * score)
@@ -514,37 +541,55 @@ def _add_targeted_batch(
         alpha = float(np.clip(alpha + rng.normal(0.0, 0.03), alpha_min, alpha_max))
         size_px = float(max(size_min_px, min(size_max_px, size_px)))
 
-        shape_type = SHAPE_ELLIPSE
-        rotation = float(rng.uniform(-np.pi, np.pi))
-        size_x = size_px
-        size_y = size_px
-        if allow_shape_routing and structure_guidance is not None:
-            shape_type, orientation = _shape_for_structure(
-                structure_guidance,
+        if structure_map is not None and circularity_map is not None:
+            shape_type = _select_round_shape_type(
+                stage_name=stage_name,
                 x=int(cx),
                 y=int(cy),
+                structure_map=structure_map,
+                circularity_map=circularity_map,
             )
-            rotation = float(orientation + rng.normal(0.0, 0.18))
-            if shape_type == SHAPE_QUAD:
-                size_x = float(size_px * rng.uniform(0.90, 1.35))
-                size_y = float(size_px * rng.uniform(0.55, 1.00))
-            elif shape_type == SHAPE_TRIANGLE:
-                size_x = float(size_px * rng.uniform(0.85, 1.25))
-                size_y = float(size_px * rng.uniform(0.70, 1.20))
-                alpha = float(np.clip(alpha + 0.04, alpha_min, alpha_max))
+        else:
+            shape_type = SHAPE_ELLIPSE
 
-        color_hint = _region_mean_color(
-            target, cx, cy, max(2, int(round(size_px * 0.6)))
-        )
+        if stage_name == "D":
+            size_px = min(size_px, 7.0)
+
+        if angle_map is not None and structure_map is not None:
+            rotation, shape_params, size_x, size_y = _initialize_shape_params(
+                shape_type=shape_type,
+                center_x=float(cx),
+                center_y=float(cy),
+                size_x=float(size_px),
+                size_y=float(size_px),
+                angle_map=angle_map,
+                magnitude_map=structure_map,
+                x0=region_box[0],
+                y0=region_box[1],
+                x1=region_box[2],
+                y1=region_box[3],
+            )
+        else:
+            rotation = float(rng.uniform(-np.pi, np.pi))
+            shape_params = np.zeros((6,), dtype=np.float32)
+            size_x = size_px
+            size_y = size_px
+
+        color_hint = np.asarray(patch_color, dtype=np.float32)
         optimizer.add_polygon(
             center_x=float(cx),
             center_y=float(cy),
             size_x=float(size_x),
             size_y=float(size_y),
-            color=color_hint,
+            color=(
+                float(np.clip(color_hint[0], 0.0, 1.0)),
+                float(np.clip(color_hint[1], 0.0, 1.0)),
+                float(np.clip(color_hint[2], 0.0, 1.0)),
+            ),
             alpha=float(alpha),
             shape_type=int(shape_type),
             rotation=float(rotation),
+            shape_params=shape_params,
         )
 
 
@@ -749,6 +794,54 @@ def _run_stage_steps(
 
     emit_update(stage_name)
     return executed
+
+
+def _apply_palette_refinement(
+    optimizer: LiveJointOptimizer,
+    *,
+    target_level: np.ndarray,
+    softness: float,
+) -> float:
+    if optimizer.polygons.count <= 0:
+        return float(optimizer.loss_history[-1])
+
+    target_lab = skcolor.rgb2lab(np.clip(target_level, 0.0, 1.0)).astype(
+        np.float32, copy=False
+    )
+    refined_colors = np.array(optimizer.polygons.colors, copy=True)
+
+    for idx in range(optimizer.polygons.count):
+        coverage = optimizer.rasterizer.single_coverage(
+            optimizer.polygons,
+            idx,
+            max(float(softness), 0.3),
+        )
+        weights = np.clip(coverage, 0.0, None).astype(np.float32, copy=False)
+        total = float(np.sum(weights, dtype=np.float32))
+        if total <= 1e-6:
+            continue
+
+        mean_lab = (
+            np.einsum("hw,hwc->c", weights, target_lab, dtype=np.float32)
+            / max(total, 1e-6)
+        ).astype(np.float32, copy=False)
+        local_rgb = _mean_lab_rgb(mean_lab)
+        refined_colors[idx] = np.clip(
+            0.70 * local_rgb + 0.30 * optimizer.polygons.colors[idx],
+            0.0,
+            1.0,
+        )
+
+    optimizer.polygons.colors = refined_colors.astype(np.float32, copy=False)
+    render = optimizer.rasterizer.render(
+        optimizer.polygons,
+        softness=max(float(softness), 0.3),
+        chunk_size=optimizer.config.render_chunk_size,
+    )
+    optimizer.current_canvas = render.canvas
+    loss = float(optimizer._loss(optimizer.current_canvas, optimizer.target))
+    optimizer.loss_history.append(loss)
+    return loss
 
 
 def execute_phase7_schedule(

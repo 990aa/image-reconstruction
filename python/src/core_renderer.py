@@ -239,6 +239,47 @@ class CoreRenderer:
         signed = np.minimum(np.minimum(d1, d2), d3)
         return self._sigmoid(signed / float(softness))
 
+    def _thin_stroke_coverage_params(
+        self,
+        *,
+        center_x: float,
+        center_y: float,
+        shape_params: np.ndarray,
+        softness: float,
+    ) -> np.ndarray:
+        x0 = float(center_x)
+        y0 = float(center_y)
+        x1 = float(shape_params[0])
+        y1 = float(shape_params[1])
+        width = max(float(shape_params[2]), 1e-3)
+
+        dx = x1 - x0
+        dy = y1 - y0
+        seg_len_sq = dx * dx + dy * dy
+
+        if seg_len_sq <= 1e-8:
+            dist = np.sqrt(
+                (self.grid_x - x0) * (self.grid_x - x0)
+                + (self.grid_y - y0) * (self.grid_y - y0)
+                + 1e-8
+            )
+        else:
+            t = (
+                ((self.grid_x - x0) * dx) + ((self.grid_y - y0) * dy)
+            ) / float(seg_len_sq)
+            t = np.clip(t, 0.0, 1.0)
+            proj_x = x0 + t * dx
+            proj_y = y0 + t * dy
+            dist = np.sqrt(
+                (self.grid_x - proj_x) * (self.grid_x - proj_x)
+                + (self.grid_y - proj_y) * (self.grid_y - proj_y)
+                + 1e-8
+            )
+
+        half_width = 0.5 * width
+        logits = (half_width - dist) / max(float(softness), 1e-6)
+        return self._sigmoid(logits)
+
     def single_coverage(self, polygons: LivePolygonBatch, index: int, softness: float) -> np.ndarray:
         idx = int(index)
         if idx < 0 or idx >= polygons.count:
@@ -268,6 +309,14 @@ class CoreRenderer:
                 axis_x=sx,
                 axis_y=sy,
                 rotation=rot,
+                softness=softness,
+            )
+
+        if shape_type == SHAPE_THIN_STROKE:
+            return self._thin_stroke_coverage_params(
+                center_x=cx,
+                center_y=cy,
+                shape_params=polygons.shape_params[idx],
                 softness=softness,
             )
 
@@ -464,6 +513,13 @@ class CoreRenderer:
                     axis_x=sx,
                     axis_y=sy,
                     rotation=rot,
+                    softness=softness,
+                )
+            elif shape_type == SHAPE_THIN_STROKE:
+                cov = self._thin_stroke_coverage_params(
+                    center_x=cx,
+                    center_y=cy,
+                    shape_params=polygons.shape_params[idx],
                     softness=softness,
                 )
             else:

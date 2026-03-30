@@ -14,6 +14,7 @@ from src.live_renderer import (
     SHAPE_BEZIER_PATCH,
     SHAPE_ELLIPSE,
     SHAPE_THIN_STROKE,
+    SHAPE_TRIANGLE,
     LivePolygonBatch,
     SoftRasterizer,
 )
@@ -391,6 +392,8 @@ def _compute_structure_maps(
     gy, gx = np.gradient(gray)
     magnitude = np.hypot(gx, gy).astype(np.float32, copy=False)
     angle = np.arctan2(gy, gx).astype(np.float32, copy=False)
+    scale = max(float(np.percentile(magnitude, 98.0)), 1e-6)
+    structure = np.clip(magnitude / scale, 0.0, 1.0).astype(np.float32, copy=False)
 
     ux = np.cos(angle)
     uy = np.sin(angle)
@@ -399,7 +402,7 @@ def _compute_structure_maps(
     resultant = np.sqrt(mean_ux * mean_ux + mean_uy * mean_uy)
 
     circularity = np.clip(1.0 - resultant, 0.0, 1.0).astype(np.float32, copy=False)
-    return magnitude, circularity, angle
+    return structure, circularity, angle
 
 
 def _select_shape_type(
@@ -412,12 +415,10 @@ def _select_shape_type(
     mag = float(magnitude_map[y, x])
     circ = float(circularity_map[y, x])
 
-    if circ >= 0.60 and mag >= 0.03:
-        return SHAPE_ANNULAR_SEGMENT
-    if mag >= 0.08 and circ <= 0.35:
+    if mag >= 0.60 and circ <= 0.30:
         return SHAPE_THIN_STROKE
-    if mag <= 0.03:
-        return SHAPE_BEZIER_PATCH
+    if mag >= 0.30:
+        return SHAPE_TRIANGLE
     return SHAPE_ELLIPSE
 
 
@@ -429,38 +430,59 @@ def _initialize_shape_params(
     size_x: float,
     size_y: float,
     angle_map: np.ndarray,
+    magnitude_map: np.ndarray,
     x0: int,
     y0: int,
     x1: int,
     y1: int,
-) -> tuple[float, np.ndarray]:
+) -> tuple[float, np.ndarray, float, float]:
     shape_params = np.zeros((6,), dtype=np.float32)
-    rotation = 0.0
+    px = int(np.clip(round(center_x), 0, angle_map.shape[1] - 1))
+    py = int(np.clip(round(center_y), 0, angle_map.shape[0] - 1))
+    gradient_angle = float(angle_map[py, px])
+    structure = float(np.clip(magnitude_map[py, px], 0.0, 1.0))
+
+    if structure <= 0.10:
+        aspect_ratio = 1.10
+    elif structure >= 0.20:
+        aspect_ratio = 3.00
+    else:
+        t = (structure - 0.10) / 0.10
+        aspect_ratio = 1.10 + t * (3.00 - 1.10)
+
+    major = float(max(size_x, size_y, 1.0))
+    minor = float(max(major / max(aspect_ratio, 1.0), 1.0))
+    rotation = float(gradient_angle + (0.5 * np.pi))
+
+    out_size_x = major
+    out_size_y = minor
 
     if shape_type == SHAPE_THIN_STROKE:
-        theta = float(angle_map[int(center_y), int(center_x)])
-        length = float(max(size_x, size_y) * 2.0)
+        theta = rotation
+        length = float(structure * 30.0 + 5.0)
         x_end = float(center_x + np.cos(theta) * length)
         y_end = float(center_y + np.sin(theta) * length)
-        width = float(max(1.5, min(size_x, size_y) * 0.6))
+        width = float(max(1.5, 0.15 * length))
         shape_params[0] = x_end
         shape_params[1] = y_end
         shape_params[2] = width
+        out_size_x = float(max(length * 0.5, 1.0))
+        out_size_y = float(max(width * 0.5, 1.0))
 
     elif shape_type == SHAPE_ANNULAR_SEGMENT:
-        theta = float(angle_map[int(center_y), int(center_x)])
+        theta = rotation
         sweep = float(np.pi * 0.6)
         shape_params[0] = float(theta - sweep * 0.5)
         shape_params[1] = float(theta + sweep * 0.5)
 
     elif shape_type == SHAPE_BEZIER_PATCH:
-        patch_scale = float(max(size_x, size_y))
+        patch_scale = float(max(out_size_x, out_size_y))
         shape_params[:4] = (
             np.array([0.25, -0.15, 0.20, -0.10], dtype=np.float32) * patch_scale
         )
-        rotation = float(angle_map[int(center_y), int(center_x)] + np.pi * 0.5)
+        rotation = float(gradient_angle + np.pi * 0.5)
 
-    return rotation, shape_params
+    return rotation, shape_params, out_size_x, out_size_y
 
 
 def _region_sum_map(error_map: np.ndarray, window: int) -> np.ndarray:
@@ -520,6 +542,83 @@ def highest_error_region_center(
 
     patch_mean = target[y0:y1, x0:x1].mean(axis=(0, 1), dtype=np.float32)
     return (center_x, center_y), (x0, y0, x1, y1), patch_mean
+
+
+def sample_diverse_error_regions(
+    target: np.ndarray,
+    canvas: np.ndarray,
+    *,
+    count: int,
+    window: int = 5,
+    top_k: int = 50,
+    guide_map: np.ndarray | None = None,
+    rng: np.random.Generator | None = None,
+) -> list[tuple[tuple[float, float], tuple[int, int, int, int], np.ndarray]]:
+    if count <= 0:
+        return []
+    if target.shape != canvas.shape:
+        raise ValueError("target and canvas must have identical shapes")
+
+    generator = np.random.default_rng() if rng is None else rng
+    h, w, _ = target.shape
+    actual_window = int(min(window, h, w))
+    if actual_window <= 0:
+        raise ValueError("window must be positive")
+
+    if guide_map is None:
+        error_map = np.sum((target - canvas) ** 2, axis=2, dtype=np.float32)
+    else:
+        if guide_map.shape != target.shape[:2]:
+            raise ValueError("guide_map must have shape (H, W)")
+        error_map = np.clip(guide_map.astype(np.float32, copy=False), 0.0, None)
+
+    region_scores = _region_sum_map(error_map, actual_window)
+    work = np.array(region_scores, copy=True)
+
+    candidates: list[tuple[tuple[float, float], tuple[int, int, int, int], np.ndarray, float]] = []
+    suppression = max(1, actual_window // 2)
+    while len(candidates) < max(1, int(top_k)):
+        flat_idx = int(np.argmax(work))
+        score = float(work.reshape(-1)[flat_idx])
+        if score <= 1e-12:
+            break
+
+        top_y, top_x = divmod(flat_idx, work.shape[1])
+        y0, x0 = int(top_y), int(top_x)
+        y1 = int(y0 + actual_window)
+        x1 = int(x0 + actual_window)
+        center_x = float(x0 + (actual_window - 1) / 2.0)
+        center_y = float(y0 + (actual_window - 1) / 2.0)
+        patch_mean = target[y0:y1, x0:x1].mean(axis=(0, 1), dtype=np.float32)
+        candidates.append(
+            ((center_x, center_y), (x0, y0, x1, y1), patch_mean, score)
+        )
+
+        wy0 = max(0, y0 - suppression)
+        wy1 = min(work.shape[0], y0 + suppression + 1)
+        wx0 = max(0, x0 - suppression)
+        wx1 = min(work.shape[1], x0 + suppression + 1)
+        work[wy0:wy1, wx0:wx1] = 0.0
+
+    if not candidates:
+        return []
+
+    take = min(int(count), len(candidates))
+    weights = np.array([max(item[3], 0.0) for item in candidates], dtype=np.float64)
+    if float(np.sum(weights)) <= 0.0:
+        weights = np.ones_like(weights)
+    probabilities = weights / np.sum(weights)
+    selected_idx = generator.choice(
+        len(candidates),
+        size=take,
+        replace=False,
+        p=probabilities,
+    )
+
+    return [
+        (candidates[int(i)][0], candidates[int(i)][1], candidates[int(i)][2])
+        for i in np.atleast_1d(selected_idx)
+    ]
 
 
 def _refresh_optimizer_canvas(optimizer: LiveJointOptimizer, softness: float) -> float:
@@ -602,9 +701,11 @@ def progressive_growth(
     end_softness: float = 0.5,
     progress_callback: Callable[[LiveJointOptimizer], None] | None = None,
     progress_every_steps: int = 4,
+    rng: np.random.Generator | None = None,
 ) -> tuple[list[GrowthCycleResult], list[GrowthEvent]]:
     cycle_results: list[GrowthCycleResult] = []
     events: list[GrowthEvent] = []
+    generator = np.random.default_rng() if rng is None else rng
 
     estimated_steps = max(
         1, len(batch_schedule) * (max_steps_per_cycle + post_add_steps)
@@ -676,6 +777,17 @@ def progressive_growth(
                     dtype=np.float32,
                 )
 
+            sampled_regions = sample_diverse_error_regions(
+                optimizer.target,
+                optimizer.current_canvas,
+                count=max(1, int(min(50, batch_size * max(1, max_add_attempts)))),
+                window=region_window,
+                top_k=50,
+                guide_map=attempt_map,
+                rng=generator,
+            )
+            region_cursor = 0
+
             best_candidate: (
                 tuple[
                     tuple[float, float],
@@ -696,12 +808,16 @@ def progressive_growth(
             polygon_added = False
             target_center_used = (0.0, 0.0)
             for _attempt in range(max(1, max_add_attempts)):
-                target_center, region_box, patch_color = highest_error_region_center(
-                    optimizer.target,
-                    optimizer.current_canvas,
-                    window=region_window,
-                    guide_map=attempt_map,
-                )
+                if region_cursor < len(sampled_regions):
+                    target_center, region_box, patch_color = sampled_regions[region_cursor]
+                    region_cursor += 1
+                else:
+                    target_center, region_box, patch_color = highest_error_region_center(
+                        optimizer.target,
+                        optimizer.current_canvas,
+                        window=region_window,
+                        guide_map=attempt_map,
+                    )
 
                 target_size = float(region_window)
                 if use_high_frequency_targeting:
@@ -736,13 +852,14 @@ def progressive_growth(
                     if use_content_aware_shapes
                     else shape_type
                 )
-                rotation, params = _initialize_shape_params(
+                rotation, params, sx, sy = _initialize_shape_params(
                     shape_type=selected_shape,
                     center_x=float(cx_i),
                     center_y=float(cy_i),
                     size_x=sx,
                     size_y=sy,
                     angle_map=angle_map,
+                    magnitude_map=mag_map,
                     x0=region_box[0],
                     y0=region_box[1],
                     x1=region_box[2],
@@ -1067,13 +1184,14 @@ def progressive_growth(
                     if use_content_aware_shapes
                     else shape_type
                 )
-                rotation, params = _initialize_shape_params(
+                rotation, params, sx, sy = _initialize_shape_params(
                     shape_type=selected_shape,
                     center_x=float(cx_i),
                     center_y=float(cy_i),
                     size_x=sx,
                     size_y=sy,
                     angle_map=angle_map,
+                    magnitude_map=mag_map,
                     x0=0,
                     y0=0,
                     x1=0,
