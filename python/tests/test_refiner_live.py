@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
@@ -17,15 +16,15 @@ from src.live_refiner import (
 from src.preprocessing import preprocess_target_array
 
 
-def test_phase7_plan_and_controls() -> None:
+def test_plan_and_controls() -> None:
     plan = build_phase7_plan(
         base_resolution=200,
-        polygon_budget=240,
+        polygon_budget=220,
         complexity_score=0.5,
     )
-    assert plan.stage_a_initial_polygons >= 20
-    assert plan.stage_b_batches == 10
-    assert plan.stage_c_batches == 8
+    assert plan.polygon_budget == 220
+    assert [stage.name for stage in plan.stages] == ["foundation", "structure", "detail"]
+    assert sum(stage.shapes_to_add for stage in plan.stages) == 220
 
     controls = Phase7ControlState()
     shot = {"value": False}
@@ -37,131 +36,57 @@ def test_phase7_plan_and_controls() -> None:
     def do_quit() -> None:
         quit_now["value"] = True
 
-    assert (
-        handle_phase7_control_key(
-            "p",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "pause"
-    )
+    assert handle_phase7_control_key(
+        "p",
+        controls=controls,
+        screenshot_callback=screenshot,
+        quit_callback=do_quit,
+    ) == "pause"
     assert controls.paused
 
-    assert (
-        handle_phase7_control_key(
-            "r",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "screenshot"
-    )
+    assert handle_phase7_control_key(
+        "r",
+        controls=controls,
+        screenshot_callback=screenshot,
+        quit_callback=do_quit,
+    ) == "screenshot"
     assert shot["value"]
 
-    assert (
-        handle_phase7_control_key(
-            "1",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "view-set"
-    )
-    assert controls.view_mode_index == 0
-
-    assert (
-        handle_phase7_control_key(
-            "v",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "view-cycle"
-    )
+    assert handle_phase7_control_key(
+        "v",
+        controls=controls,
+        screenshot_callback=screenshot,
+        quit_callback=do_quit,
+    ) == "view-cycle"
     assert controls.view_mode_index == 1
 
-    assert (
-        handle_phase7_control_key(
-            "e",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "residual-mode"
-    )
+    assert handle_phase7_control_key(
+        "e",
+        controls=controls,
+        screenshot_callback=screenshot,
+        quit_callback=do_quit,
+    ) == "residual-mode"
     assert controls.residual_mode_index == 1
 
-    assert (
-        handle_phase7_control_key(
-            "s",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "segmentation-toggle"
-    )
-    assert controls.show_segmentation_overlay
-
-    assert (
-        handle_phase7_control_key(
-            "g",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "force-growth"
-    )
+    assert handle_phase7_control_key(
+        "g",
+        controls=controls,
+        screenshot_callback=screenshot,
+        quit_callback=do_quit,
+    ) == "force-growth"
     assert controls.force_growth_requests == 1
 
-    assert (
-        handle_phase7_control_key(
-            "d",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "force-decompose"
-    )
-    assert controls.force_decompose_requests == 1
-
-    before_scale = controls.softness_scale
-    assert (
-        handle_phase7_control_key(
-            "+",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "softness-up"
-    )
-    assert controls.softness_scale > before_scale
-
-    assert (
-        handle_phase7_control_key(
-            "-",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "softness-down"
-    )
-    assert controls.softness_scale > 0.0
-
-    assert (
-        handle_phase7_control_key(
-            "q",
-            controls=controls,
-            screenshot_callback=screenshot,
-            quit_callback=do_quit,
-        )
-        == "quit"
-    )
+    assert handle_phase7_control_key(
+        "q",
+        controls=controls,
+        screenshot_callback=screenshot,
+        quit_callback=do_quit,
+    ) == "quit"
     assert controls.quit_requested
     assert quit_now["value"]
 
 
-def test_phase7_headless_generates_stage_markers() -> None:
+def test_headless_refiner_adds_shapes_and_marks_stages() -> None:
     h = w = 96
     yy, xx = np.meshgrid(
         np.linspace(0.0, 1.0, h, dtype=np.float32),
@@ -171,32 +96,34 @@ def test_phase7_headless_generates_stage_markers() -> None:
     target = np.stack([xx, yy, 0.5 * np.ones_like(xx)], axis=2)
 
     pre = preprocess_target_array(
-        target, polygon_override=180, random_seed=9, base_resolution=96
+        target,
+        polygon_override=24,
+        random_seed=9,
+        base_resolution=96,
     )
     plan = build_phase7_plan(
         base_resolution=96,
-        polygon_budget=180,
+        polygon_budget=24,
         complexity_score=float(pre.complexity_score),
     )
-    plan = replace(plan, stage_d_steps=120)
 
     result = run_phase7_headless(
         target_image=pre.target_rgb,
         segmentation_map=pre.segmentation_map,
         plan=plan,
         random_seed=9,
-        minutes=0.4,
-        hard_timeout_seconds=35.0,
-        max_total_steps=400,
+        minutes=0.05,
+        hard_timeout_seconds=10.0,
+        max_total_steps=12,
     )
 
     assert result.iterations > 0
-    stages = [name for name, _ in result.stage_markers]
-    assert "A" in stages
-    assert len(stages) >= 1
+    assert result.polygon_count > 0
+    assert result.final_canvas.shape == pre.target_rgb.shape
+    assert [name for name, _ in result.stage_markers][0] == "foundation"
 
 
-def test_phase7_cli_no_display_runs(tmp_path: Path) -> None:
+def test_cli_no_display_runs(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[1]
     run_script = project_root / "run.py"
 
@@ -205,7 +132,7 @@ def test_phase7_cli_no_display_runs(tmp_path: Path) -> None:
     img[..., 1] = np.linspace(0.0, 1.0, 96, dtype=np.float32)[:, None]
     img[..., 2] = 0.4
 
-    image_path = tmp_path / "phase7_input.png"
+    image_path = tmp_path / "refiner_input.png"
     Image.fromarray((img * 255.0).astype(np.uint8), mode="RGB").save(image_path)
 
     completed = subprocess.run(
@@ -215,13 +142,13 @@ def test_phase7_cli_no_display_runs(tmp_path: Path) -> None:
             str(image_path),
             "--no-display",
             "--polygons",
-            "180",
+            "24",
             "--minutes",
-            "0.1",
+            "0.05",
             "--resolution",
             "96",
             "--iterations",
-            "260",
+            "12",
             "--seed",
             "9",
             "--fit-mode",

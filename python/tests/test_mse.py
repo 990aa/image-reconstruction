@@ -1,11 +1,10 @@
 import numpy as np
 
-from src.canvas import create_white_canvas
 from src.mse import mean_squared_error, per_pixel_error_map
 
 
 def test_mse_white_vs_black_is_one() -> None:
-    canvas = create_white_canvas()
+    canvas = np.ones((100, 100, 3), dtype=np.float32)
     black_target = np.zeros_like(canvas, dtype=np.float32)
 
     mse = mean_squared_error(canvas, black_target)
@@ -13,7 +12,7 @@ def test_mse_white_vs_black_is_one() -> None:
 
 
 def test_mse_white_vs_white_is_zero() -> None:
-    canvas = create_white_canvas()
+    canvas = np.ones((100, 100, 3), dtype=np.float32)
     white_target = np.ones_like(canvas, dtype=np.float32)
 
     mse = mean_squared_error(canvas, white_target)
@@ -21,7 +20,7 @@ def test_mse_white_vs_white_is_zero() -> None:
 
 
 def test_error_map_max_is_single_red_pixel_center() -> None:
-    canvas = create_white_canvas()
+    canvas = np.ones((100, 100, 3), dtype=np.float32)
     target = np.ones_like(canvas, dtype=np.float32)
     target[50, 50] = np.array([1.0, 0.0, 0.0], dtype=np.float32)
 

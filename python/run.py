@@ -22,7 +22,7 @@ from src.preprocessing import preprocess_target_array
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Single-optimizer staged reconstruction (A-B-C-D) for arbitrary images."
+        description="Sequential greedy shape reconstruction for arbitrary images."
     )
     parser.add_argument("image_path", type=Path, help="Path to an input image.")
     parser.add_argument(
@@ -248,22 +248,22 @@ def print_analysis(
         print(f"hard_timeout_seconds: {hard_timeout_seconds:.1f}")
 
     print("staged_plan:")
-    print(
-        "  "
-        + ", ".join(
+    for stage in plan.stages:
+        shapes = ", ".join(
             [
-                f"A:init={plan.stage_a_initial_polygons}",
-                f"A:steps={plan.stage_a_steps}",
-                f"B:batches={plan.stage_b_batches}x{plan.stage_b_batch_size}",
-                f"B:steps/batch={plan.stage_b_steps_per_batch}",
-                f"B:size={plan.stage_b_size_start:.1f}->{plan.stage_b_size_end:.1f}",
-                f"C:batches={plan.stage_c_batches}x{plan.stage_c_batch_size}",
-                f"C:steps/batch={plan.stage_c_steps_per_batch}",
-                f"C:size={plan.stage_c_size_start:.1f}->{plan.stage_c_size_end:.1f}",
-                f"D:steps={plan.stage_d_steps}",
+                {0: "triangle", 1: "quad", 2: "ellipse", 4: "stroke"}.get(shape, str(shape))
+                for shape in stage.allowed_shapes
             ]
         )
-    )
+        print(
+            "  "
+            + (
+                f"{stage.name}: res={stage.resolution}, add={stage.shapes_to_add}, "
+                f"candidates={stage.candidate_count}, mutations={stage.mutation_steps}, "
+                f"size={stage.size_min:.1f}->{stage.size_max:.1f}, "
+                f"softness={stage.softness:.3f}, shapes=[{shapes}]"
+            )
+        )
 
     if iter_rate is None:
         print("estimated_iteration_rate: unknown")
@@ -392,8 +392,8 @@ def main() -> int:
             stage_checkpoint_callback=_stage_checkpoint_callback,
         )
     else:
-        print("Launching staged single-optimizer live visualization...")
-        print("Controls: P/S/E/R/Q, 1/2/3, V, G, D, +/-, X")
+        print("Launching sequential live visualization...")
+        print("Controls: P/E/R/Q, 1/2/3, V, G, D, +/-, X")
         result = run_phase7_live_display(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,
@@ -417,9 +417,10 @@ def main() -> int:
     print(f"final_lab_mse: {final_metrics['lab_mse']:.6f}")
     print(f"final_psnr_db: {final_metrics['psnr_db']:.3f}")
     print(f"final_ssim: {final_metrics['ssim']:.5f}")
+    background = np.mean(preprocessed.target_rgb, axis=(0, 1), dtype=np.float32)
     initial_mse = float(
         np.mean(
-            (preprocessed.target_rgb - np.ones_like(preprocessed.target_rgb)) ** 2,
+            (preprocessed.target_rgb - background.reshape(1, 1, 3)) ** 2,
             dtype=np.float32,
         )
     )
