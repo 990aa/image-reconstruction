@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 from PIL import Image
-from scipy.ndimage import gaussian_filter, uniform_filter
+from scipy.ndimage import gaussian_filter, sobel, uniform_filter
 
 from src.core_renderer import (
     SHAPE_ELLIPSE,
@@ -104,14 +104,14 @@ def build_phase7_plan(
             name="foundation",
             resolution=stage_a_res,
             shapes_to_add=stage_a_count,
-            candidate_count=42,
-            mutation_steps=84,
-            size_min=max(2.5, stage_a_res * 0.12),
-            size_max=max(4.0, stage_a_res * 0.34),
-            alpha_min=0.18,
-            alpha_max=0.38,
-            softness=0.75,
-            allowed_shapes=(SHAPE_ELLIPSE, SHAPE_QUAD),
+            candidate_count=50,
+            mutation_steps=100,
+            size_min=max(1.0, stage_a_res * 0.03),
+            size_max=max(3.0, stage_a_res * 0.20),
+            alpha_min=0.06,
+            alpha_max=0.20,
+            softness=0.55,
+            allowed_shapes=(SHAPE_ELLIPSE,),
             high_frequency_only=False,
             top_k_regions=50,
             region_window=5,
@@ -123,16 +123,16 @@ def build_phase7_plan(
             name="structure",
             resolution=stage_b_res,
             shapes_to_add=stage_b_count,
-            candidate_count=56,
-            mutation_steps=112,
-            size_min=max(1.8, stage_b_res * 0.035),
-            size_max=max(3.5, stage_b_res * 0.16),
-            alpha_min=0.24,
-            alpha_max=0.52,
-            softness=0.32,
-            allowed_shapes=(SHAPE_ELLIPSE, SHAPE_QUAD, SHAPE_TRIANGLE),
+            candidate_count=50,
+            mutation_steps=100,
+            size_min=max(1.0, stage_b_res * 0.02),
+            size_max=max(3.0, stage_b_res * 0.10),
+            alpha_min=0.05,
+            alpha_max=0.18,
+            softness=0.18,
+            allowed_shapes=(SHAPE_ELLIPSE, SHAPE_TRIANGLE),
             high_frequency_only=False,
-            top_k_regions=60,
+            top_k_regions=50,
             region_window=5,
             mutation_shift_px=1.0,
             mutation_size_ratio=0.10,
@@ -142,16 +142,16 @@ def build_phase7_plan(
             name="detail",
             resolution=stage_c_res,
             shapes_to_add=stage_c_count,
-            candidate_count=72,
-            mutation_steps=156,
-            size_min=max(0.9, stage_c_res * 0.006),
-            size_max=max(2.2, stage_c_res * 0.040),
-            alpha_min=0.42,
-            alpha_max=0.88,
-            softness=0.055,
+            candidate_count=50,
+            mutation_steps=100,
+            size_min=1.0,
+            size_max=3.0,
+            alpha_min=0.05,
+            alpha_max=0.15,
+            softness=0.035,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_TRIANGLE, SHAPE_THIN_STROKE),
             high_frequency_only=True,
-            top_k_regions=70,
+            top_k_regions=50,
             region_window=5,
             mutation_shift_px=1.0,
             mutation_size_ratio=0.10,
@@ -211,9 +211,12 @@ def _scale_polygons_to_resolution(
     )
 
 
-def _compute_structure_maps(target: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _compute_structure_maps(
+    target: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     gray = np.mean(target, axis=2, dtype=np.float32)
-    gy, gx = np.gradient(gray)
+    gx = sobel(gray, axis=1, mode="reflect")
+    gy = sobel(gray, axis=0, mode="reflect")
     magnitude = np.hypot(gx, gy).astype(np.float32, copy=False)
     scale = max(float(np.percentile(magnitude, 99.0)), 1e-6)
     structure = np.clip(magnitude / scale, 0.0, 1.0).astype(np.float32, copy=False)
@@ -227,21 +230,55 @@ def _compute_structure_maps(target: np.ndarray) -> tuple[np.ndarray, np.ndarray,
         np.float32, copy=False
     )
     linearity = np.clip(linearity, 0.0, 1.0).astype(np.float32, copy=False)
-    return structure, angle, linearity
+    mean_mag = uniform_filter(structure, size=5, mode="reflect")
+    mean_mag_sq = uniform_filter(structure * structure, size=5, mode="reflect")
+    grad_variance = np.clip(mean_mag_sq - mean_mag * mean_mag, 0.0, None).astype(
+        np.float32, copy=False
+    )
+    var_scale = max(float(np.percentile(grad_variance, 99.0)), 1e-6)
+    grad_variance = np.clip(grad_variance / var_scale, 0.0, 1.0).astype(
+        np.float32, copy=False
+    )
+    return structure, angle, linearity, grad_variance
 
 
 def _guide_map(
     target: np.ndarray,
     canvas: np.ndarray,
     *,
+    edge_map: np.ndarray,
     high_frequency_only: bool,
 ) -> np.ndarray:
     residual = np.mean(np.abs(target - canvas), axis=2, dtype=np.float32)
-    if not high_frequency_only:
+    weighted = residual * np.clip(edge_map.astype(np.float32, copy=False), 0.0, 1.0)
+    if high_frequency_only:
+        weighted = weighted * np.clip(edge_map, 0.0, 1.0)
+    if float(np.max(weighted)) <= 1e-8:
         return residual.astype(np.float32, copy=False)
-    smooth = gaussian_filter(residual, sigma=2.5, mode="reflect")
-    high = np.clip(residual - smooth, 0.0, None)
-    return (high + 0.15 * residual).astype(np.float32, copy=False)
+    return weighted.astype(np.float32, copy=False)
+
+
+def _annealed_size_bounds(
+    *,
+    resolution: int,
+    total_budget: int,
+    accepted_shapes: int,
+) -> tuple[float, float]:
+    progress = float(np.clip(accepted_shapes / max(total_budget, 1), 0.0, 1.0))
+    width = float(resolution)
+    if progress < 0.25:
+        max_size = 0.20 * width
+        min_size = max(1.5, 0.35 * max_size)
+    elif progress < 0.50:
+        max_size = 0.10 * width
+        min_size = max(1.2, 0.30 * max_size)
+    elif progress < 0.75:
+        max_size = 0.05 * width
+        min_size = max(1.0, 0.24 * max_size)
+    else:
+        max_size = float(np.clip(0.015 * width, 1.0, 3.0))
+        min_size = 1.0
+    return float(min_size), float(max(max_size, min_size))
 
 
 def handle_phase7_control_key(
@@ -385,7 +422,12 @@ def execute_phase7_schedule(
             polygons=stage_polygons,
             background_color=background_color,
         )
-        structure_map, angle_map, linearity_map = _compute_structure_maps(stage_target)
+        (
+            structure_map,
+            angle_map,
+            linearity_map,
+            gradient_variance_map,
+        ) = _compute_structure_maps(stage_target)
 
         stage_markers.append((stage.name, len(loss_history)))
         resolution_markers.append(len(loss_history))
@@ -402,14 +444,19 @@ def execute_phase7_schedule(
             if deadline is not None and time.perf_counter() >= deadline:
                 break
 
+            size_min, size_max = _annealed_size_bounds(
+                resolution=stage.resolution,
+                total_budget=plan.polygon_budget,
+                accepted_shapes=iteration,
+            )
             effective_stage = SequentialStageConfig(
                 name=stage.name,
                 resolution=stage.resolution,
                 shapes_to_add=stage.shapes_to_add,
                 candidate_count=stage.candidate_count,
                 mutation_steps=stage.mutation_steps,
-                size_min=stage.size_min,
-                size_max=stage.size_max,
+                size_min=size_min,
+                size_max=size_max,
                 alpha_min=stage.alpha_min,
                 alpha_max=stage.alpha_max,
                 softness=float(max(1e-3, stage.softness * controls.softness_scale)),
@@ -426,6 +473,7 @@ def execute_phase7_schedule(
             guide_map = _guide_map(
                 optimizer.target,
                 optimizer.current_canvas,
+                edge_map=structure_map,
                 high_frequency_only=effective_stage.high_frequency_only,
             )
             candidate = optimizer.search_next_shape(
@@ -434,11 +482,12 @@ def execute_phase7_schedule(
                 structure_map=structure_map,
                 angle_map=angle_map,
                 linearity_map=linearity_map,
+                gradient_variance_map=gradient_variance_map,
                 rng=rng,
             )
             if candidate is None:
                 no_improvement_count += 1
-                if no_improvement_count >= 8:
+                if no_improvement_count >= 10:
                     break
                 continue
 

@@ -38,6 +38,7 @@ def test_analytic_color_matches_simple_full_coverage_region() -> None:
         structure_map=np.ones((48, 48), dtype=np.float32) * 0.4,
         angle_map=np.zeros((48, 48), dtype=np.float32),
         linearity_map=np.ones((48, 48), dtype=np.float32),
+        gradient_variance_map=np.ones((48, 48), dtype=np.float32) * 0.5,
         rng=np.random.default_rng(4),
     )
     candidate.center_x = 25.0
@@ -78,6 +79,7 @@ def test_sequential_search_commits_strict_mse_improvement() -> None:
         structure_map=np.ones((48, 48), dtype=np.float32) * 0.4,
         angle_map=np.zeros((48, 48), dtype=np.float32),
         linearity_map=np.ones((48, 48), dtype=np.float32),
+        gradient_variance_map=np.ones((48, 48), dtype=np.float32) * 0.5,
         rng=np.random.default_rng(5),
     )
 

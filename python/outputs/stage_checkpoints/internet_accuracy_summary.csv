@@ -1,4 +1,0 @@
-"image","run_id","iterations","polygons","rgb_mse","lab_mse","psnr_db","ssim","run_dir"
-"internet_graphic.jpg","internet_graphic_20260329_184648","659","76","0.004256668034940958","21.8245792388916","23.70930217855492","0.5780509114265442","outputs/stage_checkpoints/internet_graphic_20260329_184648"
-"internet_landscape.jpg","internet_landscape_20260329_185155","850","84","0.0006767442100681365","3.6798951625823975","31.695754511780187","0.9099372029304504","outputs/stage_checkpoints/internet_landscape_20260329_185155"
-"internet_portrait.jpg","internet_portrait_20260329_185725","850","92","0.043707240372896194","182.3616180419922","13.5944661352083","0.19683225452899933","outputs/stage_checkpoints/internet_portrait_20260329_185725"
