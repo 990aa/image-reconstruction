@@ -1,0 +1,13 @@
+{
+  "stage": "foundation",
+  "image_path": "outputs/stage_checkpoints/face_20260331_083852/stage_foundation.png",
+  "resolution": 50.0,
+  "accepted_shapes": 10.0,
+  "stage_loss": 0.05598839744925499,
+  "softness": 0.55,
+  "rgb_mse": 0.05825693905353546,
+  "rmse": 0.2413647427722936,
+  "psnr_db": 12.346523378868937,
+  "ssim": 0.742379903793335,
+  "lab_mse": 232.40744018554688
+}

@@ -249,10 +249,9 @@ def _guide_map(
     edge_map: np.ndarray,
     high_frequency_only: bool,
 ) -> np.ndarray:
+    del high_frequency_only
     residual = np.mean(np.abs(target - canvas), axis=2, dtype=np.float32)
     weighted = residual * np.clip(edge_map.astype(np.float32, copy=False), 0.0, 1.0)
-    if high_frequency_only:
-        weighted = weighted * np.clip(edge_map, 0.0, 1.0)
     if float(np.max(weighted)) <= 1e-8:
         return residual.astype(np.float32, copy=False)
     return weighted.astype(np.float32, copy=False)

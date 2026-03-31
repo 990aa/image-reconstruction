@@ -1,0 +1,60 @@
+{
+  "run_id": "grape_20260331_084227",
+  "image_path": "targets/grape.jpg",
+  "fit_mode": "crop",
+  "resolution": 200,
+  "minutes": 5.0,
+  "seed": 42,
+  "polygons": 300,
+  "iterations": 300,
+  "accepted_polygons": 300,
+  "final_metrics": {
+    "rgb_mse": 0.04964853450655937,
+    "rmse": 0.2228195110544841,
+    "psnr_db": 13.040935662040013,
+    "ssim": 0.2405291348695755,
+    "lab_mse": 232.4494171142578
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "foundation",
+      "image_path": "outputs/stage_checkpoints/grape_20260331_084227/stage_foundation.png",
+      "resolution": 50.0,
+      "accepted_shapes": 50.0,
+      "stage_loss": 0.04348916932940483,
+      "softness": 0.55,
+      "rgb_mse": 0.053957749158144,
+      "rmse": 0.23228807364594506,
+      "psnr_db": 12.679461751711148,
+      "ssim": 0.18047742545604706,
+      "lab_mse": 237.4514617919922
+    },
+    {
+      "stage": "structure",
+      "image_path": "outputs/stage_checkpoints/grape_20260331_084227/stage_structure.png",
+      "resolution": 100.0,
+      "accepted_shapes": 150.0,
+      "stage_loss": 0.03631467744708061,
+      "softness": 0.18,
+      "rgb_mse": 0.03971613943576813,
+      "rmse": 0.19928908508939502,
+      "psnr_db": 14.010329732488467,
+      "ssim": 0.2536618411540985,
+      "lab_mse": 187.31126403808594
+    },
+    {
+      "stage": "detail",
+      "image_path": "outputs/stage_checkpoints/grape_20260331_084227/stage_detail.png",
+      "resolution": 200.0,
+      "accepted_shapes": 300.0,
+      "stage_loss": 0.04964853450655937,
+      "softness": 0.035,
+      "rgb_mse": 0.04964853450655937,
+      "rmse": 0.2228195110544841,
+      "psnr_db": 13.040935662040013,
+      "ssim": 0.2405291348695755,
+      "lab_mse": 232.4494171142578
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/grape_20260331_084227"
+}
