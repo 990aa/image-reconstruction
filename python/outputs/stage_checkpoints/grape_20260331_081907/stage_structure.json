@@ -1,0 +1,13 @@
+{
+  "stage": "structure",
+  "image_path": "outputs/stage_checkpoints/grape_20260331_081907/stage_structure.png",
+  "resolution": 100.0,
+  "accepted_shapes": 142.0,
+  "stage_loss": 0.0225987508893013,
+  "softness": 0.32,
+  "rgb_mse": 0.025995584204792976,
+  "rmse": 0.16123146158486865,
+  "psnr_db": 15.851004181201132,
+  "ssim": 0.3468452990055084,
+  "lab_mse": 130.2344207763672
+}

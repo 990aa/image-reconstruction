@@ -104,8 +104,8 @@ def build_phase7_plan(
             name="foundation",
             resolution=stage_a_res,
             shapes_to_add=stage_a_count,
-            candidate_count=36,
-            mutation_steps=72,
+            candidate_count=42,
+            mutation_steps=84,
             size_min=max(2.5, stage_a_res * 0.12),
             size_max=max(4.0, stage_a_res * 0.34),
             alpha_min=0.18,
@@ -123,8 +123,8 @@ def build_phase7_plan(
             name="structure",
             resolution=stage_b_res,
             shapes_to_add=stage_b_count,
-            candidate_count=44,
-            mutation_steps=88,
+            candidate_count=56,
+            mutation_steps=112,
             size_min=max(1.8, stage_b_res * 0.035),
             size_max=max(3.5, stage_b_res * 0.16),
             alpha_min=0.24,
@@ -142,13 +142,13 @@ def build_phase7_plan(
             name="detail",
             resolution=stage_c_res,
             shapes_to_add=stage_c_count,
-            candidate_count=52,
-            mutation_steps=112,
-            size_min=max(1.0, stage_c_res * 0.008),
-            size_max=max(2.5, stage_c_res * 0.050),
+            candidate_count=72,
+            mutation_steps=156,
+            size_min=max(0.9, stage_c_res * 0.006),
+            size_max=max(2.2, stage_c_res * 0.040),
             alpha_min=0.42,
-            alpha_max=0.82,
-            softness=0.08,
+            alpha_max=0.88,
+            softness=0.055,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_TRIANGLE, SHAPE_THIN_STROKE),
             high_frequency_only=True,
             top_k_regions=70,
@@ -438,7 +438,7 @@ def execute_phase7_schedule(
             )
             if candidate is None:
                 no_improvement_count += 1
-                if no_improvement_count >= 4:
+                if no_improvement_count >= 8:
                     break
                 continue
 

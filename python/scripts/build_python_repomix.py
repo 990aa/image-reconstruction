@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# Run: uv run python .\scripts\build_python_repomix.py
+# Run: uv run python\scripts\build_python_repomix.py
 
 import os
 import re
