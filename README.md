@@ -1,196 +1,152 @@
 # Attention-Guided Evolutionary Art
 
 ## Overview
-This project reconstructs arbitrary target images using transparent geometric primitives and a staged evolutionary optimizer.
+This repository reconstructs target images with ordered alpha-blended geometric primitives. The active live reconstruction module is now [python/src/live_refiner.py](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\src\live_refiner.py).
 
-The current system includes a full Phase 7 pipeline:
-- Automatic image complexity analysis.
-- Automatic polygon budget planning.
-- Automatic multi-resolution progressive growth.
-- Five-panel live visualization with signed residual diagnostics.
-- Interactive runtime steering controls.
-- Built-in hard timeout protection so long runs cannot hang indefinitely.
+The current implementation includes:
+- A two-pass live optimizer with separate appearance and geometry rollback.
+- Grid-seeded initialization for the coarse round.
+- A fixed four-round live refiner schedule at 50, 100, and 200 resolution.
+- Diverse high-error region sampling for polygon insertion.
+- Structure-guided aspect ratios and thin-stroke support.
+- Round-to-round palette refinement in LAB space.
+- A live display path plus a headless execution path.
+- Hard runtime limits and a `<30s remaining` switch to final-only optimization.
 
-## Environment Setup
+## Current Status
+The code paths above are implemented and tested, but the 5-minute reconstruction quality is still limited by the cost of finite-difference geometry updates.
+
+The latest measured 5-minute `grape.jpg` run at `200x200` produced:
+- `rgb_mse = 0.07396`
+- `ssim = 0.15606`
+- `psnr = 11.31 dB`
+- `gradient_mse = 0.01458`
+- `gradient_corr = -0.02610`
+- `polygon_count = 32`
+- stage coverage: only round `A` completed under the 5-minute cap on this machine
+
+Output artifacts from that run:
+- Image: [python/outputs/refiner_eval/grape_refiner_5min.png](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\refiner_eval\grape_refiner_5min.png)
+- Metrics: [python/outputs/refiner_eval/grape_refiner_5min_metrics.json](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\refiner_eval\grape_refiner_5min_metrics.json)
+
+That means the pipeline is functional, but it is not yet producing a high-fidelity 5-minute reconstruction on the grape target.
+
+## Python Setup
 Requirements:
 - Python 3.12+
-- Node.js 20+ (slides only)
-- uv
+- `uv`
+- Node.js with `npx.cmd` available if you want to generate repomix snapshots
 
-Python environment:
+Setup:
 
 ```powershell
 Set-Location python
 uv sync
 ```
 
-Slides environment (optional):
-
-```powershell
-Set-Location slides
-npm install
-```
-
-## Main Interface (Phase 7)
-Primary run interface:
+## Main Run Commands
+Live window:
 
 ```powershell
 Set-Location python
-uv run python run.py path/to/image.jpg [--polygons 400] [--minutes 3] [--resolution 200]
+uv run python run.py .\targets\grape.jpg --minutes 5 --resolution 200
 ```
 
-Default behavior is automatic:
-- Detect image complexity.
-- Build staged schedule.
-- Execute multi-resolution progressive growth.
-- Enforce safe timeout boundaries.
-
-## Phase 7 CLI Options
-- `--polygons`: manual polygon budget override.
-- `--minutes`: soft runtime budget in minutes.
-- `--timeout-seconds`: hard timeout in seconds (default: `minutes*60 + 45`).
-- `--resolution`: base square resolution.
-- `--fit-mode`: `auto`, `crop`, or `letterbox`.
-- `--no-prompt`: disable interactive fit prompt in `auto` mode.
-- `--seed`: deterministic seed.
-- `--update-interval-ms`: live UI refresh interval (default: `2000`).
-- `--close-after-seconds`: auto-close live window after N seconds.
-- `--no-display`: headless mode.
-- `--iterations`: testing cap for total optimization points.
-
-## Phase 7 Display
-The live window uses five panels:
-1. Target (static reference).
-2. Current reconstruction (full-resolution view).
-3. Residual error (signed): red means too dark, blue means too bright.
-4. Polygon outlines on white background, size-colored:
-   - large: blue
-   - medium: green
-   - small: red
-5. Log-scale MSE curve with vertical markers for:
-   - resolution transitions
-   - polygon batch additions
-
-## Keyboard Controls
-Original controls:
-- `P`: pause/resume.
-- `S`: segmentation overlay toggle.
-- `E`: residual panel mode cycle.
-- `R`: save screenshot.
-- `Q`: graceful quit.
-- `1`/`2`/`3`: set focus view.
-
-Added controls:
-- `G`: force immediate polygon growth batch.
-- `D`: force immediate residual decomposition and correction pass.
-- `V`: cycle focus view (reconstruction, residual, outlines).
-- `+` / `-`: adjust softness live.
-
-## Run Modes
-Live interactive reconstruction:
+Headless run:
 
 ```powershell
 Set-Location python
-uv run python run.py .\targets\internet_landscape.jpg --minutes 3 --resolution 200
+uv run python run.py .\targets\grape.jpg --no-display --minutes 5 --resolution 200
 ```
 
-Headless Phase 7 run:
-
-```powershell
-Set-Location python
-uv run python run.py .\targets\internet_landscape.jpg --no-display --minutes 3 --resolution 200
-```
-
-Hard-timeout-constrained run:
-
-```powershell
-Set-Location python
-uv run python run.py .\targets\internet_landscape.jpg --minutes 3 --timeout-seconds 170
-```
-
-Automated short smoke run:
-
-```powershell
-Set-Location python
-uv run python run.py .\targets\internet_landscape.jpg --close-after-seconds 8 --iterations 140 --minutes 0.2
-```
-
-External timeout wrapper run:
-
-```powershell
-Set-Location python
-uv run python scripts\interrupt_timeout.py --timeout-seconds 180 -- uv run python run.py .\targets\internet_landscape.jpg --minutes 3
-```
-
-Naive vs improved comparison mode:
-
-```powershell
-Set-Location python
-uv run python compare.py .\targets\internet_landscape.jpg --iterations 800 --no-display --output .\outputs\internet_landscape_compare.png
-```
-
-Legacy tri-target demo mode:
-
-```powershell
-Set-Location python
-uv run python demo.py
-```
-
-Final high-resolution evaluation and metric export:
+Final evaluation helper:
 
 ```powershell
 Set-Location python
 uv run python final_reconstruct_eval.py
 ```
 
-## Experimental Snapshot
-Paired 800-iteration comparison (naive vs improved):
+## Current Live Refiner Behavior
+The live refiner currently does the following:
 
-| Target | Naive Final MSE | Improved Final MSE | Improvement Gap |
-| --- | ---: | ---: | ---: |
-| Portrait | 555.1732 | 114.7067 | 440.4665 |
-| Landscape | 208.1470 | 1.9645 | 206.1825 |
-| Graphic | 359.3228 | 14.0109 | 345.3118 |
+1. Round A at `50x50`
+   - starts from `24` grid-seeded ellipses
+   - adds batches of `8`
+   - uses `position_lr=0.8`, `size_lr=0.3`, `color_lr=0.05`
+2. Round B at `100x100`
+   - scales the current polygons
+   - adds batches of `6`
+   - uses `position_lr=0.6`, `size_lr=0.2`, `color_lr=0.04`
+3. Round C at `200x200`
+   - scales the current polygons
+   - adds batches of `5`
+   - uses `position_lr=0.4`, `size_lr=0.15`, `color_lr=0.03`
+4. Round D at `200x200`
+   - stays at full working resolution
+   - adds batches of `3`
+   - uses `position_lr=0.2`, `size_lr=0.08`, `color_lr=0.02`
 
-Final 500x500 Phase 7 reconstructions (1000 polygons, 5 minutes):
+Optimizer details:
+- appearance updates and geometry updates are evaluated separately
+- color gradients use `trans_after * effective_alpha`
+- geometry updates use finite differences with rollback only for geometry
+- palette refinement blends `70%` local LAB target color with `30%` current polygon color between rounds
 
-| Target | MSE | RMSE | PSNR (dB) | SSIM | Accuracy (%) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Portrait | 0.1815 | 0.4260 | 7.41 | 0.2534 | 81.85 |
-| Landscape | 0.0650 | 0.2550 | 11.87 | 0.8080 | 93.50 |
-| Graphic | 0.1287 | 0.3587 | 8.91 | 0.5148 | 87.13 |
+## Display and Controls
+The live UI still exposes the existing control surface from the refiner module:
+- `P`: pause/resume
+- `R`: save screenshot
+- `Q`: quit
+- `S`: segmentation overlay toggle
+- `E`: residual view mode cycle
+- `V`: focus view cycle
+- `1`, `2`, `3`: direct focus view selection
+- `+`, `-`: softness scaling
+- `G`, `D`: force-growth / force-decomposition requests
 
-## Testing and Quality
-Run tests:
+## Testing
+Compile:
 
 ```powershell
 Set-Location python
-uv run python -m pytest tests -v
+uv run python -m compileall .\src .\tests .\scripts .\run.py .\final_reconstruct_eval.py
 ```
 
-Run lint/format/type checks:
+Focused tests used during the recent refiner update:
 
 ```powershell
 Set-Location python
-uvx ruff check --fix
-uvx ruff format
-uvx ty check
+$env:PYTHONPATH = (Get-Location).Path
+uv run pytest .\tests\test_live_optimizer.py .\tests\test_refiner_live.py -q
 ```
 
-## Slides (Optional)
-Build reveal.js deck:
+## Repomix Snapshot
+Reusable repomix generator:
 
 ```powershell
-Set-Location slides
-npm run build
+Set-Location python
+uv run python .\scripts\build_python_repomix.py
 ```
 
-Generate PPTX:
+That script creates [python/python_repomix.xml](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\python_repomix.xml) for the `python/` folder while excluding:
+- all cache folders
+- `.venv`
+- `targets`
+- `outputs`
+- `scripts`
+- `tests`
+- `uv.lock`
+- `.python-version`
 
-```powershell
-Set-Location slides
-npm run pptx
-```
+Included files currently come from:
+- top-level Python files such as `run.py`, `final_reconstruct_eval.py`, `compare.py`, `demo.py`, and `pyproject.toml`
+- everything under `python/src/`
 
-## Documentation
-- Full paper: `docs/academic_paper.md`
+The script also verifies that the generated XML paths exactly match that manifest and fails if any missing or unexpected file is present.
+
+## Repository Layout
+- [python/src/live_refiner.py](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\src\live_refiner.py): active live refiner module
+- [python/src/live_optimizer.py](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\src\live_optimizer.py): joint optimizer and rollback logic
+- [python/src/live_schedule.py](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\src\live_schedule.py): growth helpers, grid seeding, residual targeting
+- [python/run.py](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\run.py): CLI entry point
+- [docs/academic_paper.md](C:\Users\ahada\Documents\abdulahad\evolutionary-art\docs\academic_paper.md): implementation-focused paper draft
