@@ -844,6 +844,453 @@ def _apply_palette_refinement(
     return loss
 
 
+def _execute_phase7_round_schedule(
+    *,
+    target_full: np.ndarray,
+    plan: Phase7Plan,
+    random_seed: int,
+    controls: Phase7ControlState,
+    shared_update_callback,
+    max_total_steps: int | None,
+    stage_checkpoint_callback,
+    start_time: float,
+    soft_deadline: float | None,
+    hard_deadline: float | None,
+) -> Phase7ExecutionResult:
+    full_h, full_w = target_full.shape[:2]
+    full_resolution = int(min(full_w, full_h))
+    rng = np.random.default_rng(random_seed)
+
+    def _deadline_reached() -> bool:
+        now = time.monotonic()
+        return bool(
+            (soft_deadline is not None and now >= soft_deadline)
+            or (hard_deadline is not None and now >= hard_deadline)
+        )
+
+    def _remaining_seconds() -> float:
+        deadlines = [d for d in (soft_deadline, hard_deadline) if d is not None]
+        if not deadlines:
+            return float("inf")
+        return float(min(deadlines) - time.monotonic())
+
+    def _target_at_resolution(resolution: int) -> np.ndarray:
+        if resolution == full_resolution and full_h == full_w:
+            return target_full
+        return _resize_rgb(target_full, width=resolution, height=resolution)
+
+    round_specs = [
+        {
+            "stage": "A",
+            "resolution": min(50, full_resolution),
+            "seed_count": int(plan.stage_a_initial_polygons),
+            "batches": 10,
+            "batch_size": 8,
+            "steps_per_batch": 200,
+            "size_min": 8.0,
+            "size_max": 18.0,
+            "color_lr": 0.05,
+            "position_lr": 0.80,
+            "size_lr": 0.30,
+            "max_fd_polygons": None,
+            "high_frequency": False,
+            "alpha_min": 0.72,
+            "alpha_max": 0.88,
+            "softness_start": 1.8,
+            "softness_end": 0.55,
+        },
+        {
+            "stage": "B",
+            "resolution": min(100, full_resolution),
+            "seed_count": 0,
+            "batches": 8,
+            "batch_size": 6,
+            "steps_per_batch": 150,
+            "size_min": 5.0,
+            "size_max": 15.0,
+            "color_lr": 0.04,
+            "position_lr": 0.60,
+            "size_lr": 0.20,
+            "max_fd_polygons": None,
+            "high_frequency": False,
+            "alpha_min": 0.55,
+            "alpha_max": 0.80,
+            "softness_start": 1.3,
+            "softness_end": 0.45,
+        },
+        {
+            "stage": "C",
+            "resolution": min(200, full_resolution),
+            "seed_count": 0,
+            "batches": 10,
+            "batch_size": 5,
+            "steps_per_batch": 100,
+            "size_min": 3.0,
+            "size_max": 10.0,
+            "color_lr": 0.03,
+            "position_lr": 0.40,
+            "size_lr": 0.15,
+            "max_fd_polygons": 40,
+            "high_frequency": False,
+            "alpha_min": 0.38,
+            "alpha_max": 0.62,
+            "softness_start": 0.95,
+            "softness_end": 0.32,
+        },
+        {
+            "stage": "D",
+            "resolution": min(200, full_resolution),
+            "seed_count": 0,
+            "batches": 10,
+            "batch_size": 3,
+            "steps_per_batch": 80,
+            "size_min": 3.0,
+            "size_max": 7.0,
+            "color_lr": 0.02,
+            "position_lr": 0.20,
+            "size_lr": 0.08,
+            "max_fd_polygons": 40,
+            "high_frequency": True,
+            "alpha_min": 0.28,
+            "alpha_max": 0.50,
+            "softness_start": 0.70,
+            "softness_end": 0.24,
+        },
+    ]
+    if full_resolution <= 50:
+        round_specs = [round_specs[0]]
+    elif full_resolution <= 100:
+        round_specs = round_specs[:2]
+
+    def _round_config(spec: dict[str, object]) -> LiveOptimizerConfig:
+        return LiveOptimizerConfig(
+            color_lr=float(spec["color_lr"]),
+            position_lr=float(spec["position_lr"]),
+            size_lr=float(spec["size_lr"]),
+            rotation_lr=0.0,
+            alpha_lr=0.0,
+            position_update_interval=1,
+            size_update_interval=3,
+            max_fd_polygons=spec["max_fd_polygons"],  # type: ignore[arg-type]
+            render_chunk_size=50,
+            checkpoint_stride=10,
+            min_size=float(spec["size_min"]),
+            max_size=float(spec["size_max"]),
+            min_alpha=0.05,
+            max_alpha=0.98,
+            allow_loss_increase=False,
+            use_lab_loss=True,
+        )
+
+    current_resolution = int(round_specs[0]["resolution"])
+    target_level = _target_at_resolution(current_resolution)
+    structure_map, circularity_map, angle_map = _compute_structure_maps(target_level)
+    optimizer = LiveJointOptimizer(
+        target_image=target_level,
+        rasterizer=SoftRasterizer(height=current_resolution, width=current_resolution),
+        polygons=make_grid_seeded_batch(
+            target=target_level,
+            count=int(round_specs[0]["seed_count"]),
+            alpha=0.85,
+        ),
+        config=_round_config(round_specs[0]),
+    )
+
+    loss_history: list[float] = [float(optimizer.loss_history[-1])]
+    stage_markers: list[tuple[str, int]] = []
+    batch_markers: list[int] = []
+    resolution_markers: list[int] = [0]
+    stage_iteration = 0
+    stage_start_loss = float(loss_history[-1])
+    stage_position_updates = 0
+    active_stage_name: str | None = None
+
+    def _display_canvas() -> np.ndarray:
+        canvas = np.array(optimizer.current_canvas, copy=True)
+        if current_resolution == full_resolution and full_h == full_w:
+            return canvas
+        return _resize_rgb(canvas, width=full_w, height=full_h)
+
+    def _display_polygons() -> LivePolygonBatch:
+        poly = optimizer.polygons.copy()
+        if current_resolution == full_resolution and full_h == full_w:
+            return poly
+        return _scale_polygons_to_resolution(
+            poly,
+            old_width=current_resolution,
+            old_height=current_resolution,
+            new_width=full_w,
+            new_height=full_h,
+        )
+
+    def _emit(stage_name: str, *, running: bool = True, status_override: str | None = None) -> None:
+        canvas = _display_canvas()
+        rgb_mse = _rgb_mse(target_full, canvas)
+        status = (
+            status_override
+            if status_override is not None
+            else f"stage={stage_name} res={current_resolution} polygons={optimizer.polygons.count} rgb_mse={rgb_mse:.6f}"
+        )
+        shared_update_callback(
+            canvas,
+            _display_polygons(),
+            full_w,
+            list(loss_history),
+            list(resolution_markers),
+            list(batch_markers),
+            stage_name,
+            len(loss_history),
+            rgb_mse,
+            stage_iteration,
+            stage_start_loss,
+            stage_position_updates,
+            running,
+            status,
+            list(stage_markers),
+        )
+
+    def _emit_stage_checkpoint(stage_name: str) -> None:
+        if stage_checkpoint_callback is None:
+            return
+        canvas = _display_canvas()
+        stage_checkpoint_callback(
+            stage_name,
+            canvas,
+            {
+                "stage": stage_name,
+                "global_iteration": int(len(loss_history)),
+                "stage_iteration": int(stage_iteration),
+                "stage_start_loss": float(stage_start_loss),
+                "stage_position_updates": int(stage_position_updates),
+                "polygon_count": int(optimizer.polygons.count),
+                "rgb_mse": float(_rgb_mse(target_full, canvas)),
+                "resolution": int(current_resolution),
+                "elapsed_seconds": float(time.monotonic() - start_time),
+                "softness": float(controls.latest_softness),
+            },
+        )
+
+    def _begin_stage(stage_name: str) -> None:
+        nonlocal stage_iteration
+        nonlocal stage_start_loss
+        nonlocal stage_position_updates
+        nonlocal active_stage_name
+        if active_stage_name is not None:
+            _emit_stage_checkpoint(active_stage_name)
+        stage_markers.append((stage_name, len(loss_history)))
+        stage_iteration = 0
+        stage_start_loss = float(optimizer.loss_history[-1])
+        stage_position_updates = 0
+        active_stage_name = stage_name
+
+    def _stage_step_callback(_stage_name: str, position_triggered: bool) -> None:
+        nonlocal stage_iteration
+        nonlocal stage_position_updates
+        stage_iteration += 1
+        if position_triggered:
+            stage_position_updates += 1
+
+    def _transition_to_round(spec: dict[str, object], stage_name: str) -> None:
+        nonlocal optimizer
+        nonlocal target_level
+        nonlocal current_resolution
+        nonlocal structure_map
+        nonlocal circularity_map
+        nonlocal angle_map
+
+        new_resolution = int(spec["resolution"])
+        scaled = optimizer.polygons.copy()
+        if new_resolution != current_resolution:
+            scaled = _scale_polygons_to_resolution(
+                optimizer.polygons,
+                old_width=current_resolution,
+                old_height=current_resolution,
+                new_width=new_resolution,
+                new_height=new_resolution,
+            )
+
+        current_resolution = new_resolution
+        target_level = _target_at_resolution(current_resolution)
+        structure_map, circularity_map, angle_map = _compute_structure_maps(target_level)
+        optimizer = LiveJointOptimizer(
+            target_image=target_level,
+            rasterizer=SoftRasterizer(height=current_resolution, width=current_resolution),
+            polygons=scaled,
+            config=_round_config(spec),
+        )
+        loss_history.append(float(optimizer.loss_history[-1]))
+        resolution_markers.append(len(loss_history) - 1)
+        _emit(stage_name, status_override=f"resolution transition -> {current_resolution}x{current_resolution}")
+
+    skip_to_final_pass = False
+    last_stage_name = str(round_specs[0]["stage"])
+
+    for round_index, spec in enumerate(round_specs):
+        stage_name = str(spec["stage"])
+        last_stage_name = stage_name
+        if controls.quit_requested or _deadline_reached():
+            break
+        if max_total_steps is not None and len(loss_history) >= max_total_steps:
+            break
+
+        if round_index > 0:
+            _apply_palette_refinement(
+                optimizer,
+                target_level=target_level,
+                softness=max(float(spec["softness_end"]), 0.3),
+            )
+            loss_history.append(float(optimizer.loss_history[-1]))
+            _transition_to_round(spec, stage_name)
+
+        _begin_stage(stage_name)
+        _emit(stage_name)
+
+        for _batch_idx in range(int(spec["batches"])):
+            if controls.quit_requested or _deadline_reached():
+                break
+            if max_total_steps is not None and len(loss_history) >= max_total_steps:
+                break
+            if _remaining_seconds() < 30.0:
+                skip_to_final_pass = True
+                _emit(
+                    stage_name,
+                    status_override="remaining time under 30s, skipping additions and running final optimization",
+                )
+                break
+
+            checkpoint_len = len(loss_history)
+            checkpoint_loss = float(optimizer.loss_history[-1])
+            checkpoint_polygons = optimizer.polygons.copy()
+            checkpoint_canvas = np.array(optimizer.current_canvas, copy=True)
+
+            if bool(spec["high_frequency"]):
+                error_map = _high_frequency_error_map(target_level, optimizer.current_canvas)
+            elif stage_name == "C":
+                hf_err = _high_frequency_error_map(target_level, optimizer.current_canvas)
+                lab_err = _lab_residual_map(target_level, optimizer.current_canvas)
+                error_map = np.clip(0.65 * hf_err + 0.35 * lab_err, 0.0, 1.0)
+            else:
+                error_map = _lab_residual_map(target_level, optimizer.current_canvas)
+
+            _add_targeted_batch(
+                optimizer,
+                stage_name=stage_name,
+                target=target_level,
+                batch_size=int(spec["batch_size"]),
+                size_min_px=float(spec["size_min"]),
+                size_max_px=float(spec["size_max"]),
+                alpha_min=float(spec["alpha_min"]),
+                alpha_max=float(spec["alpha_max"]),
+                high_frequency=bool(spec["high_frequency"]),
+                rng=rng,
+                error_map=error_map,
+                structure_map=structure_map,
+                circularity_map=circularity_map,
+                angle_map=angle_map,
+            )
+            batch_markers.append(len(loss_history))
+            _emit(stage_name)
+
+            _run_stage_steps(
+                optimizer=optimizer,
+                controls=controls,
+                stage_name=stage_name,
+                steps=int(spec["steps_per_batch"]),
+                start_softness=float(spec["softness_start"]),
+                end_softness=float(spec["softness_end"]),
+                deadline_reached=_deadline_reached,
+                emit_update=_emit,
+                on_forced_actions=lambda _stage, _soft: False,
+                max_total_steps=max_total_steps,
+                loss_history=loss_history,
+                step_callback=_stage_step_callback,
+            )
+
+            if float(optimizer.loss_history[-1]) > checkpoint_loss + 1e-6:
+                optimizer.restore_state(
+                    checkpoint_polygons,
+                    checkpoint_canvas,
+                    checkpoint_loss,
+                    record_loss=False,
+                )
+                del loss_history[checkpoint_len:]
+                if batch_markers and batch_markers[-1] >= checkpoint_len:
+                    batch_markers.pop()
+                _emit(stage_name)
+
+        if skip_to_final_pass:
+            break
+
+    if skip_to_final_pass and not controls.quit_requested and not _deadline_reached():
+        remaining = max(0.0, _remaining_seconds())
+        final_steps = int(max(1, min(240, np.floor(max(remaining - 2.0, 1.0) * 3.0))))
+        _run_stage_steps(
+            optimizer=optimizer,
+            controls=controls,
+            stage_name=last_stage_name,
+            steps=final_steps,
+            start_softness=0.40,
+            end_softness=0.20,
+            deadline_reached=_deadline_reached,
+            emit_update=_emit,
+            on_forced_actions=lambda _stage, _soft: False,
+            max_total_steps=max_total_steps,
+            loss_history=loss_history,
+            step_callback=_stage_step_callback,
+        )
+
+    final_canvas = _display_canvas()
+    final_rgb_mse = _rgb_mse(target_full, final_canvas)
+    if active_stage_name is not None:
+        _emit_stage_checkpoint(active_stage_name)
+    if stage_checkpoint_callback is not None:
+        stage_checkpoint_callback(
+            "final",
+            final_canvas,
+            {
+                "stage": "final",
+                "global_iteration": int(len(loss_history)),
+                "stage_iteration": int(stage_iteration),
+                "stage_start_loss": float(stage_start_loss),
+                "stage_position_updates": int(stage_position_updates),
+                "polygon_count": int(optimizer.polygons.count),
+                "rgb_mse": float(final_rgb_mse),
+                "resolution": int(current_resolution),
+                "elapsed_seconds": float(time.monotonic() - start_time),
+                "softness": float(controls.latest_softness),
+            },
+        )
+
+    shared_update_callback(
+        final_canvas,
+        _display_polygons(),
+        full_w,
+        list(loss_history),
+        list(resolution_markers),
+        list(batch_markers),
+        "done",
+        len(loss_history),
+        final_rgb_mse,
+        stage_iteration,
+        stage_start_loss,
+        stage_position_updates,
+        False,
+        "complete",
+        list(stage_markers),
+    )
+
+    return Phase7ExecutionResult(
+        final_canvas=final_canvas,
+        final_loss=final_rgb_mse,
+        polygon_count=optimizer.polygons.count,
+        iterations=len(loss_history),
+        loss_history=list(loss_history),
+        resolution_markers=list(resolution_markers),
+        batch_markers=list(batch_markers),
+        stage_markers=list(stage_markers),
+    )
+
+
 def execute_phase7_schedule(
     *,
     target_image: np.ndarray,
@@ -860,7 +1307,6 @@ def execute_phase7_schedule(
         raise ValueError("target_image must have shape (H, W, 3)")
 
     target_full = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
-    full_h, full_w = target_full.shape[:2]
 
     start_time = time.monotonic()
     soft_deadline = (
@@ -872,14 +1318,20 @@ def execute_phase7_schedule(
         else None
     )
 
-    def _deadline_reached() -> bool:
-        now = time.monotonic()
-        return bool(
-            (soft_deadline is not None and now >= soft_deadline)
-            or (hard_deadline is not None and now >= hard_deadline)
-        )
+    return _execute_phase7_round_schedule(
+        target_full=target_full,
+        plan=plan,
+        random_seed=random_seed,
+        controls=controls,
+        shared_update_callback=shared_update_callback,
+        max_total_steps=max_total_steps,
+        stage_checkpoint_callback=stage_checkpoint_callback,
+        start_time=start_time,
+        soft_deadline=soft_deadline,
+        hard_deadline=hard_deadline,
+    )
 
-    rng = np.random.default_rng(random_seed)
+    full_h, full_w = target_full.shape[:2]
 
     runtime_scale = 1.0
     if minutes > 0.0:
