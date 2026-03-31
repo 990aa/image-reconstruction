@@ -330,7 +330,12 @@ class SequentialHillClimber:
             and linearity >= 0.45
         ):
             return SHAPE_TRIANGLE
-        if SHAPE_QUAD in allowed and structure >= 0.35 and variance >= 0.018 and rng.random() < 0.15:
+        if (
+            SHAPE_QUAD in allowed
+            and structure >= 0.35
+            and variance >= 0.018
+            and rng.random() < 0.15
+        ):
             return SHAPE_QUAD
         if SHAPE_ELLIPSE in allowed:
             return SHAPE_ELLIPSE

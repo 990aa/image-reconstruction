@@ -1,0 +1,34 @@
+{
+  "run_id": "refiner_input_20260331_092709",
+  "image_path": "C:/Users/ahada/AppData/Local/Temp/pytest-of-ahada/pytest-43/test_cli_no_display_runs0/refiner_input.png",
+  "fit_mode": "crop",
+  "resolution": 96,
+  "minutes": 0.05,
+  "seed": 9,
+  "polygons": 24,
+  "iterations": 12,
+  "accepted_polygons": 12,
+  "final_metrics": {
+    "rgb_mse": 0.008352173492312431,
+    "rmse": 0.09139022645946573,
+    "psnr_db": 20.78200493032979,
+    "ssim": 0.8988106846809387,
+    "lab_mse": 114.87406158447266
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "foundation",
+      "image_path": "outputs/stage_checkpoints/refiner_input_20260331_092709/stage_foundation.png",
+      "resolution": 50.0,
+      "accepted_shapes": 12.0,
+      "stage_loss": 0.0067546735517680645,
+      "softness": 0.75,
+      "rgb_mse": 0.00672196364030242,
+      "rmse": 0.08198758223232601,
+      "psnr_db": 21.725038409975635,
+      "ssim": 0.8950454592704773,
+      "lab_mse": 94.05201721191406
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/refiner_input_20260331_092709"
+}

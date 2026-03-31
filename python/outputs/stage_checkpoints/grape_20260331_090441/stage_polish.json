@@ -1,0 +1,13 @@
+{
+  "stage": "polish",
+  "image_path": "outputs/stage_checkpoints/grape_20260331_090441/stage_polish.png",
+  "resolution": 200.0,
+  "accepted_shapes": 385.0,
+  "stage_loss": 0.0319831445813179,
+  "softness": 0.028,
+  "rgb_mse": 0.0319831445813179,
+  "rmse": 0.17883831966700509,
+  "psnr_db": 14.950788386768528,
+  "ssim": 0.3116416931152344,
+  "lab_mse": 139.64453125
+}

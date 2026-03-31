@@ -23,12 +23,7 @@ def test_plan_and_controls() -> None:
         complexity_score=0.5,
     )
     assert plan.polygon_budget == 220
-    assert [stage.name for stage in plan.stages] == [
-        "foundation",
-        "structure",
-        "detail",
-        "polish",
-    ]
+    assert [stage.name for stage in plan.stages] == ["foundation", "structure", "detail"]
     assert sum(stage.shapes_to_add for stage in plan.stages) == 220
 
     controls = Phase7ControlState()

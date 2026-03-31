@@ -18,8 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 from PIL import Image
-from scipy.ndimage import gaussian_filter, sobel, uniform_filter
-from skimage import color as skcolor
+from scipy.ndimage import gaussian_filter, uniform_filter
 
 from src.core_renderer import (
     SHAPE_ELLIPSE,
@@ -92,32 +91,26 @@ def build_phase7_plan(
     budget = max(1, int(polygon_budget))
     _ = float(complexity_score)
 
-    stage_a_count = min(budget, max(1, int(round(0.40 * budget))))
-    stage_b_count = min(
-        max(0, budget - stage_a_count),
-        max(1, int(round(0.40 * budget))),
-    )
-    remaining = max(0, budget - stage_a_count - stage_b_count)
-    stage_c_count = remaining // 2
-    stage_d_count = remaining - stage_c_count
+    stage_a_count = min(50, budget)
+    stage_b_count = min(100, max(0, budget - stage_a_count))
+    stage_c_count = max(0, budget - stage_a_count - stage_b_count)
 
     stage_a_res = max(24, min(50, int(base_resolution)))
     stage_b_res = max(stage_a_res, min(100, int(base_resolution)))
     stage_c_res = int(base_resolution)
-    stage_d_res = int(base_resolution)
 
     stages = (
         SequentialStageConfig(
             name="foundation",
             resolution=stage_a_res,
             shapes_to_add=stage_a_count,
-            candidate_count=50,
-            mutation_steps=100,
-            size_min=max(1.0, stage_a_res * 0.03),
-            size_max=max(3.0, stage_a_res * 0.20),
-            alpha_min=0.60,
-            alpha_max=0.95,
-            softness=0.55,
+            candidate_count=42,
+            mutation_steps=84,
+            size_min=max(2.5, stage_a_res * 0.12),
+            size_max=max(4.0, stage_a_res * 0.34),
+            alpha_min=0.18,
+            alpha_max=0.38,
+            softness=0.75,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_QUAD),
             high_frequency_only=False,
             top_k_regions=50,
@@ -130,16 +123,16 @@ def build_phase7_plan(
             name="structure",
             resolution=stage_b_res,
             shapes_to_add=stage_b_count,
-            candidate_count=50,
-            mutation_steps=100,
-            size_min=max(1.0, stage_b_res * 0.02),
-            size_max=max(3.0, stage_b_res * 0.10),
-            alpha_min=0.35,
-            alpha_max=0.60,
-            softness=0.18,
-            allowed_shapes=(SHAPE_ELLIPSE, SHAPE_TRIANGLE),
+            candidate_count=56,
+            mutation_steps=112,
+            size_min=max(1.8, stage_b_res * 0.035),
+            size_max=max(3.5, stage_b_res * 0.16),
+            alpha_min=0.24,
+            alpha_max=0.52,
+            softness=0.32,
+            allowed_shapes=(SHAPE_ELLIPSE, SHAPE_QUAD, SHAPE_TRIANGLE),
             high_frequency_only=False,
-            top_k_regions=50,
+            top_k_regions=60,
             region_window=5,
             mutation_shift_px=1.0,
             mutation_size_ratio=0.10,
@@ -149,35 +142,16 @@ def build_phase7_plan(
             name="detail",
             resolution=stage_c_res,
             shapes_to_add=stage_c_count,
-            candidate_count=50,
-            mutation_steps=100,
-            size_min=1.0,
-            size_max=3.0,
-            alpha_min=0.10,
-            alpha_max=0.35,
-            softness=0.035,
+            candidate_count=72,
+            mutation_steps=156,
+            size_min=max(0.9, stage_c_res * 0.006),
+            size_max=max(2.2, stage_c_res * 0.040),
+            alpha_min=0.42,
+            alpha_max=0.88,
+            softness=0.055,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_TRIANGLE, SHAPE_THIN_STROKE),
             high_frequency_only=True,
-            top_k_regions=50,
-            region_window=5,
-            mutation_shift_px=1.0,
-            mutation_size_ratio=0.10,
-            mutation_rotation_deg=5.0,
-        ),
-        SequentialStageConfig(
-            name="polish",
-            resolution=stage_d_res,
-            shapes_to_add=stage_d_count,
-            candidate_count=50,
-            mutation_steps=100,
-            size_min=1.0,
-            size_max=3.0,
-            alpha_min=0.10,
-            alpha_max=0.35,
-            softness=0.028,
-            allowed_shapes=(SHAPE_ELLIPSE, SHAPE_THIN_STROKE),
-            high_frequency_only=True,
-            top_k_regions=50,
+            top_k_regions=70,
             region_window=5,
             mutation_shift_px=1.0,
             mutation_size_ratio=0.10,
@@ -241,8 +215,7 @@ def _compute_structure_maps(
     target: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     gray = np.mean(target, axis=2, dtype=np.float32)
-    gx = sobel(gray, axis=1, mode="reflect")
-    gy = sobel(gray, axis=0, mode="reflect")
+    gy, gx = np.gradient(gray)
     magnitude = np.hypot(gx, gy).astype(np.float32, copy=False)
     scale = max(float(np.percentile(magnitude, 99.0)), 1e-6)
     structure = np.clip(magnitude / scale, 0.0, 1.0).astype(np.float32, copy=False)
@@ -275,39 +248,12 @@ def _guide_map(
     edge_map: np.ndarray,
     high_frequency_only: bool,
 ) -> np.ndarray:
-    del high_frequency_only
-    target_lab = skcolor.rgb2lab(np.clip(target, 0.0, 1.0)).astype(np.float32, copy=False)
-    canvas_lab = skcolor.rgb2lab(np.clip(canvas, 0.0, 1.0)).astype(np.float32, copy=False)
-    lab_residual = np.mean(np.abs(target_lab - canvas_lab), axis=2, dtype=np.float32)
-    lab_scale = max(float(np.percentile(lab_residual, 99.0)), 1e-6)
-    lab_residual = np.clip(lab_residual / lab_scale, 0.0, 1.0).astype(
-        np.float32, copy=False
-    )
-    structure = np.clip(edge_map.astype(np.float32, copy=False), 0.0, 1.0)
-    return (0.7 * lab_residual + 0.3 * structure).astype(np.float32, copy=False)
-
-
-def _annealed_size_bounds(
-    *,
-    resolution: int,
-    total_budget: int,
-    accepted_shapes: int,
-) -> tuple[float, float]:
-    progress = float(np.clip(accepted_shapes / max(total_budget, 1), 0.0, 1.0))
-    width = float(resolution)
-    if progress < 0.25:
-        max_size = 0.20 * width
-        min_size = max(1.5, 0.35 * max_size)
-    elif progress < 0.50:
-        max_size = 0.10 * width
-        min_size = max(1.2, 0.30 * max_size)
-    elif progress < 0.75:
-        max_size = 0.05 * width
-        min_size = max(1.0, 0.24 * max_size)
-    else:
-        max_size = float(np.clip(0.015 * width, 1.0, 3.0))
-        min_size = 1.0
-    return float(min_size), float(max(max_size, min_size))
+    residual = np.mean(np.abs(target - canvas), axis=2, dtype=np.float32)
+    if not high_frequency_only:
+        return residual.astype(np.float32, copy=False)
+    smooth = gaussian_filter(residual, sigma=2.5, mode="reflect")
+    high = np.clip(residual - smooth, 0.0, None)
+    return (high + 0.15 * residual).astype(np.float32, copy=False)
 
 
 def handle_phase7_control_key(
@@ -473,19 +419,14 @@ def execute_phase7_schedule(
             if deadline is not None and time.perf_counter() >= deadline:
                 break
 
-            size_min, size_max = _annealed_size_bounds(
-                resolution=stage.resolution,
-                total_budget=plan.polygon_budget,
-                accepted_shapes=iteration,
-            )
             effective_stage = SequentialStageConfig(
                 name=stage.name,
                 resolution=stage.resolution,
                 shapes_to_add=stage.shapes_to_add,
                 candidate_count=stage.candidate_count,
                 mutation_steps=stage.mutation_steps,
-                size_min=size_min,
-                size_max=size_max,
+                size_min=stage.size_min,
+                size_max=stage.size_max,
                 alpha_min=stage.alpha_min,
                 alpha_max=stage.alpha_max,
                 softness=float(max(1e-3, stage.softness * controls.softness_scale)),
@@ -516,7 +457,7 @@ def execute_phase7_schedule(
             )
             if candidate is None:
                 no_improvement_count += 1
-                if no_improvement_count >= 10:
+                if no_improvement_count >= 8:
                     break
                 continue
 

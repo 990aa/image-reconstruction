@@ -1,0 +1,13 @@
+{
+  "stage": "foundation",
+  "image_path": "outputs/stage_checkpoints/grape_20260331_090441/stage_foundation.png",
+  "resolution": 50.0,
+  "accepted_shapes": 86.0,
+  "stage_loss": 0.020076267421245575,
+  "softness": 0.55,
+  "rgb_mse": 0.030614932999014854,
+  "rmse": 0.17497123477593354,
+  "psnr_db": 15.140666866835797,
+  "ssim": 0.28016898036003113,
+  "lab_mse": 133.7844696044922
+}
