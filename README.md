@@ -16,50 +16,54 @@ The current kept 5-minute verification run is:
 - target: `python/targets/grape.jpg`
 - resolution: `200x200`
 - runtime: `5 minutes`
-- run id: `grape_20260331_093438`
+- run id: `grape_20260401_164124`
 
 Measured final metrics:
-- `rgb_mse = 0.020303`
-- `ssim = 0.45878`
-- `psnr = 16.924 dB`
-- `lab_mse = 110.403`
-- `gradient_mse = 0.00761`
-- `gradient_mae = 0.05647`
-- `gradient_corr = 0.59014`
-- `accepted_polygons = 295`
+- `rgb_mse = 0.013905`
+- `ssim = 0.55509`
+- `psnr = 18.568 dB`
+- `lab_mse = 71.802`
+- `gradient_mse = 0.00588`
+- `gradient_mae = 0.04979`
+- `gradient_corr = 0.69528`
+- `accepted_polygons = 596`
 
 Current kept artifacts:
-- Image: [stage_detail.png](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260331_093438\stage_detail.png)
-- Metrics: [run_metrics.json](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260331_093438\run_metrics.json)
+- Image: [stage_detail.png](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260401_164124\stage_detail.png)
+- Metrics: [run_metrics.json](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260401_164124\run_metrics.json)
 
-![Best reconstruction](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260331_093438\stage_detail.png)
+![Best reconstruction](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260401_164124\stage_detail.png)
 
 Historical note:
-During development on March 31, 2026, this same restored three-stage sequential variant previously reached a better one-off `rgb_mse` of about `0.01948`. The currently kept rerun from the restored code is `0.02030`, and that is the artifact still present in the workspace.
+The previous kept best was the restored March 31, 2026 sequential run `grape_20260331_093438`, which reached `rgb_mse = 0.020303` and `ssim = 0.45878`. The April 1, 2026 tuning pass improved that benchmark materially and is now the active best snapshot.
 
 ## Current Algorithm
-The restored best variant uses three stages:
+The current best variant still uses three sequential stages, but with larger early resolutions, heavier candidate search, and stronger alpha coverage:
 
-1. Foundation at `50x50`
-   - `50` shapes
-   - large ellipses and quads
-   - `candidate_count=42`
-   - `mutation_steps=84`
-2. Structure at `100x100`
-   - `100` shapes
+1. Foundation at `100x100`
+   - `200` shapes max, or `budget // 6`
+   - ellipses and quads
+   - `candidate_count=80`
+   - `mutation_steps=160`
+   - `alpha=0.55 -> 0.85`
+2. Structure at `150x150`
+   - `400` shapes max, or `budget // 3`
    - ellipses, quads, and triangles
-   - `candidate_count=56`
-   - `mutation_steps=112`
+   - `candidate_count=64`
+   - `mutation_steps=128`
+   - `alpha=0.40 -> 0.72`
 3. Detail at `200x200`
    - remaining shapes
    - ellipses, triangles, and thin strokes
    - `candidate_count=72`
    - `mutation_steps=156`
+   - `alpha=0.28 -> 0.60`
 
 Important implementation details:
-- routing uses absolute residual, with high-frequency emphasis only in the detail pass
+- routing uses absolute residual, with detail routing `high_frequency + 0.40 * residual`
 - shape colors are solved analytically, not by learning rates
 - geometry is refined by mutation-based hill climbing, not finite-difference gradients
+- mutation radii scale by stage, up to `6 px` shifts and `15 deg` rotations in detail
 - the canvas starts from the target mean color, not a random or white field
 
 ## Setup

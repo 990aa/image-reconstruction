@@ -91,12 +91,12 @@ def build_phase7_plan(
     budget = max(1, int(polygon_budget))
     _ = float(complexity_score)
 
-    stage_a_count = min(50, budget)
-    stage_b_count = min(100, max(0, budget - stage_a_count))
+    stage_a_count = min(200, budget // 6)
+    stage_b_count = min(400, max(0, budget // 3))
     stage_c_count = max(0, budget - stage_a_count - stage_b_count)
 
-    stage_a_res = max(24, min(50, int(base_resolution)))
-    stage_b_res = max(stage_a_res, min(100, int(base_resolution)))
+    stage_a_res = max(50, min(100, int(base_resolution)))
+    stage_b_res = max(stage_a_res, min(150, int(base_resolution)))
     stage_c_res = int(base_resolution)
 
     stages = (
@@ -104,39 +104,39 @@ def build_phase7_plan(
             name="foundation",
             resolution=stage_a_res,
             shapes_to_add=stage_a_count,
-            candidate_count=42,
-            mutation_steps=84,
+            candidate_count=80,
+            mutation_steps=160,
             size_min=max(2.5, stage_a_res * 0.12),
             size_max=max(4.0, stage_a_res * 0.34),
-            alpha_min=0.18,
-            alpha_max=0.38,
+            alpha_min=0.55,
+            alpha_max=0.85,
             softness=0.75,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_QUAD),
             high_frequency_only=False,
-            top_k_regions=50,
+            top_k_regions=80,
             region_window=5,
-            mutation_shift_px=1.0,
-            mutation_size_ratio=0.10,
-            mutation_rotation_deg=5.0,
+            mutation_shift_px=2.5,
+            mutation_size_ratio=0.18,
+            mutation_rotation_deg=15.0,
         ),
         SequentialStageConfig(
             name="structure",
             resolution=stage_b_res,
             shapes_to_add=stage_b_count,
-            candidate_count=56,
-            mutation_steps=112,
+            candidate_count=64,
+            mutation_steps=128,
             size_min=max(1.8, stage_b_res * 0.035),
             size_max=max(3.5, stage_b_res * 0.16),
-            alpha_min=0.24,
-            alpha_max=0.52,
+            alpha_min=0.40,
+            alpha_max=0.72,
             softness=0.32,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_QUAD, SHAPE_TRIANGLE),
             high_frequency_only=False,
             top_k_regions=60,
             region_window=5,
-            mutation_shift_px=1.0,
-            mutation_size_ratio=0.10,
-            mutation_rotation_deg=5.0,
+            mutation_shift_px=4.0,
+            mutation_size_ratio=0.18,
+            mutation_rotation_deg=15.0,
         ),
         SequentialStageConfig(
             name="detail",
@@ -146,16 +146,16 @@ def build_phase7_plan(
             mutation_steps=156,
             size_min=max(0.9, stage_c_res * 0.006),
             size_max=max(2.2, stage_c_res * 0.040),
-            alpha_min=0.42,
-            alpha_max=0.88,
+            alpha_min=0.28,
+            alpha_max=0.60,
             softness=0.055,
             allowed_shapes=(SHAPE_ELLIPSE, SHAPE_TRIANGLE, SHAPE_THIN_STROKE),
             high_frequency_only=True,
             top_k_regions=70,
             region_window=5,
-            mutation_shift_px=1.0,
-            mutation_size_ratio=0.10,
-            mutation_rotation_deg=5.0,
+            mutation_shift_px=6.0,
+            mutation_size_ratio=0.18,
+            mutation_rotation_deg=15.0,
         ),
     )
     return Phase7Plan(polygon_budget=budget, stages=stages)
@@ -244,7 +244,7 @@ def _guide_map(
         return residual.astype(np.float32, copy=False)
     smooth = gaussian_filter(residual, sigma=2.5, mode="reflect")
     high = np.clip(residual - smooth, 0.0, None)
-    return (high + 0.15 * residual).astype(np.float32, copy=False)
+    return (high + 0.40 * residual).astype(np.float32, copy=False)
 
 
 def handle_phase7_control_key(

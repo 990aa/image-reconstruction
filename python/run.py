@@ -319,7 +319,7 @@ def main() -> int:
     polygon_budget = (
         int(args.polygons)
         if args.polygons is not None
-        else int(preprocessed.recommended_polygons)
+        else 1500
     )
     plan = build_phase7_plan(
         base_resolution=args.resolution,

@@ -13,7 +13,7 @@ The active code path for the current best implementation is:
 - [python/src/core_renderer.py](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\src\core_renderer.py)
 
 ## Best Approach
-The strongest implementation reached in this repository is the restored three-stage sequential greedy painter.
+The strongest implementation reached in this repository is the April 1, 2026 tuned three-stage sequential greedy painter.
 
 Core idea:
 - add one shape at a time
@@ -25,62 +25,83 @@ Core idea:
 Why it works:
 - it reduces the search problem from hundreds of coupled parameters to one local decision at a time
 - analytic color removes RGB from the geometry search, which makes candidate evaluation much cheaper
-- the staged schedule lets the system first capture broad color masses, then structure, then fine detail
+- the staged schedule now starts at a higher resolution, so early shapes survive promotion more faithfully
+- stronger early alpha lets the system establish solid color masses before refining them
 - the detail pass can spend more compute on edge-sensitive residuals without starving the early passes
 
 ### Best Schedule
-The restored best schedule is:
+The current best schedule is:
 
 1. Foundation
-   - `50x50`
-   - `50` shapes
-   - ellipses and quads
-   - `42` random candidates per addition
-   - `84` hill-climb mutations for the winning candidate
-2. Structure
    - `100x100`
-   - `100` shapes
+   - `min(200, budget // 6)` shapes
+   - ellipses and quads
+   - `80` random candidates per addition
+   - `160` hill-climb mutations for the winning candidate
+   - `alpha=0.55 -> 0.85`
+   - `mutation_shift_px=2.5`
+   - `mutation_size_ratio=0.18`
+   - `mutation_rotation_deg=15`
+2. Structure
+   - `150x150`
+   - `min(400, budget // 3)` shapes
    - ellipses, quads, triangles
-   - `56` candidates
-   - `112` mutations
+   - `64` candidates
+   - `128` mutations
+   - `alpha=0.40 -> 0.72`
+   - `mutation_shift_px=4.0`
+   - `mutation_size_ratio=0.18`
+   - `mutation_rotation_deg=15`
 3. Detail
    - `200x200`
    - remaining budget
    - ellipses, triangles, thin strokes
    - `72` candidates
    - `156` mutations
+   - `alpha=0.28 -> 0.60`
+   - `mutation_shift_px=6.0`
+   - `mutation_size_ratio=0.18`
+   - `mutation_rotation_deg=15`
 
 Important supporting choices:
 - the canvas starts from the target mean color
 - early stages use broad residual routing
-- the detail stage adds a high-frequency bias to prioritize edges and fine structures
+- the detail stage uses `high_frequency + 0.40 * residual`, so unresolved large color masses still matter
 - angular shapes are allowed, but not so aggressively that they destroy organic contours
 
 ### Best Verified Metrics
 The currently kept best restored run in the workspace is:
-- run id: `grape_20260331_093438`
+- run id: `grape_20260401_164124`
 - target: `python/targets/grape.jpg`
 - runtime: `5 minutes`
 - resolution: `200x200`
 
 Measured metrics:
-- `rgb_mse = 0.020303`
-- `rmse = 0.14249`
-- `psnr = 16.924 dB`
-- `ssim = 0.45878`
-- `lab_mse = 110.403`
-- `gradient_mse = 0.00761`
-- `gradient_mae = 0.05647`
-- `gradient_corr = 0.59014`
-- `accepted_polygons = 295`
+- `rgb_mse = 0.013905`
+- `rmse = 0.11792`
+- `psnr = 18.568 dB`
+- `ssim = 0.55509`
+- `lab_mse = 71.802`
+- `gradient_mse = 0.00588`
+- `gradient_mae = 0.04979`
+- `gradient_corr = 0.69528`
+- `accepted_polygons = 596`
 
 Kept artifacts:
-- [stage_detail.png](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260331_093438\stage_detail.png)
-- [run_metrics.json](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260331_093438\run_metrics.json)
+- [stage_detail.png](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260401_164124\stage_detail.png)
+- [run_metrics.json](C:\Users\ahada\Documents\abdulahad\evolutionary-art\python\outputs\stage_checkpoints\grape_20260401_164124\run_metrics.json)
 
-Historical note:
-- during development on March 31, 2026, the same three-stage sequential family previously reached a slightly better one-off `rgb_mse` of about `0.01948`
-- that earlier artifact was later removed during output cleanup, so the kept reproducible run in the workspace is the `0.020303` result above
+Improvement over the previous kept best:
+- previous best run `grape_20260331_093438` had `rgb_mse = 0.020303`, `ssim = 0.45878`, `lab_mse = 110.403`, and `gradient_corr = 0.59014`
+- the current tuning improved every major tracked metric on the same benchmark target
+- absolute delta vs previous best:
+  - `rgb_mse`: `-0.006399`
+  - `ssim`: `+0.09631`
+  - `psnr`: `+1.644 dB`
+  - `lab_mse`: `-38.601`
+  - `gradient_mse`: `-0.00173`
+  - `gradient_mae`: `-0.00668`
+  - `gradient_corr`: `+0.10513`
 
 ## Failed Approaches
 The experiments below were valuable, but they moved the code away from the strongest variant.
@@ -118,6 +139,30 @@ Why it drifted:
 
 Takeaway:
 - the grid seed was useful as a diagnostic shortcut, but not as the strongest final image-construction strategy.
+
+### 2.5. Restored March 31 Sequential Baseline
+What it did:
+- restored the simpler three-stage sequential greedy branch after the failed optimizer experiments
+- used `50 -> 100 -> 200` resolution stages
+- kept lighter alpha in the early stages and smaller mutation radii
+
+Why it mattered:
+- this was the first branch that clearly re-established the sequential greedy path as the right optimization family
+- it became the baseline that later tuning improved on
+
+Observed result:
+- `rgb_mse = 0.020303`
+- `ssim = 0.45878`
+- `lab_mse = 110.403`
+- `gradient_corr = 0.59014`
+
+Why it was not the final best:
+- the foundation stage still started too low in resolution
+- early alpha was too weak to establish strong masses quickly
+- mutation radii were small enough to slow down geometric settling
+
+Takeaway:
+- the baseline proved the strategy, and the April 1 tuning proved that the strategy still had substantial headroom.
 
 ### 3. Ultra-Low-Alpha Watercolor Constraint
 What it did:
@@ -213,9 +258,9 @@ The main deviations away from the best version were consistent:
 If you continue from the restored best branch, the safest next steps are:
 - keep the sequential one-shape-at-a-time strategy
 - keep analytic color
-- keep the three-stage schedule as the base
+- keep the higher-resolution three-stage schedule as the base
 - tune candidate counts, mutation counts, and residual weighting incrementally
 - treat structure guidance as a secondary signal, not the primary objective
 - preserve ellipse dominance for organic images
 
-The most important lesson from the experiments is simple: the best results came from a relatively direct greedy reconstructor, not from the more complicated optimization branches that were added later.
+The most important lesson from the experiments is simple: the best results came from a relatively direct greedy reconstructor, and the winning improvements were the ones that made that core strategy stronger rather than replacing it.
