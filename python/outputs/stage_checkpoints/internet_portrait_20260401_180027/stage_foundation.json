@@ -1,0 +1,16 @@
+{
+  "stage": "foundation",
+  "image_path": "outputs/stage_checkpoints/internet_portrait_20260401_180027/stage_foundation.png",
+  "resolution": 100.0,
+  "accepted_shapes": 20.0,
+  "stage_loss": 0.04700147733092308,
+  "softness": 0.75,
+  "rgb_mse": 0.05040217190980911,
+  "rmse": 0.22450428038193193,
+  "psnr_db": 12.975507487107851,
+  "ssim": 0.18794621527194977,
+  "lab_mse": 226.10096740722656,
+  "gradient_mse": 0.01341902744024992,
+  "gradient_mae": 0.07114993035793304,
+  "gradient_corr": 0.11586001211615436
+}

@@ -1,0 +1,16 @@
+{
+  "stage": "structure",
+  "image_path": "outputs/stage_checkpoints/internet_landscape_20260401_175520/stage_structure.png",
+  "resolution": 150.0,
+  "accepted_shapes": 245.0,
+  "stage_loss": 3.448707502684556e-05,
+  "softness": 0.32,
+  "rgb_mse": 4.172997432760894e-05,
+  "rmse": 0.006459874172738115,
+  "psnr_db": 43.79551882467328,
+  "ssim": 0.9751641154289246,
+  "lab_mse": 0.4787527024745941,
+  "gradient_mse": 1.4379094864125364e-05,
+  "gradient_mae": 0.0024260315112769604,
+  "gradient_corr": 0.8469254357588252
+}

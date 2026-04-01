@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib
 
@@ -245,6 +246,94 @@ def _guide_map(
     smooth = gaussian_filter(residual, sigma=2.5, mode="reflect")
     high = np.clip(residual - smooth, 0.0, None)
     return (high + 0.40 * residual).astype(np.float32, copy=False)
+
+
+def _normalized_error_map(target: np.ndarray, canvas: np.ndarray) -> np.ndarray:
+    err = np.mean(np.abs(target - canvas), axis=2, dtype=np.float32)
+    scale = max(float(np.quantile(err, 0.99)), 1e-6)
+    return np.clip(err / scale, 0.0, 1.0).astype(np.float32, copy=False)
+
+
+def _draw_dashboard(
+    *,
+    fig,
+    axes: np.ndarray,
+    target: np.ndarray,
+    canvas: np.ndarray,
+    losses: np.ndarray,
+    resolution_markers: list[int],
+    batch_markers: list[int],
+    stage_markers: list[tuple[str, int]],
+    polygon_count: int,
+    iteration: int,
+    stage_name: str,
+    status_line: str,
+) -> None:
+    ax_target, ax_canvas, ax_error, ax_curve = axes.reshape(-1)
+    error_map = _normalized_error_map(target, canvas)
+    current_loss = float(losses[-1]) if losses.size else _rgb_mse(canvas, target)
+
+    ax_target.clear()
+    ax_target.imshow(target)
+    ax_target.set_title("Target")
+    ax_target.set_xticks([])
+    ax_target.set_yticks([])
+
+    ax_canvas.clear()
+    ax_canvas.imshow(canvas)
+    ax_canvas.set_title(f"Reconstruction | shapes={polygon_count}")
+    ax_canvas.set_xticks([])
+    ax_canvas.set_yticks([])
+
+    ax_error.clear()
+    ax_error.imshow(error_map, cmap="magma", vmin=0.0, vmax=1.0)
+    ax_error.set_title("Absolute Error")
+    ax_error.set_xticks([])
+    ax_error.set_yticks([])
+
+    ax_curve.clear()
+    ax_curve.set_title("RGB MSE Reduction")
+    ax_curve.set_xlabel("Accepted shape")
+    ax_curve.set_ylabel("MSE")
+    ax_curve.set_yscale("log")
+    ax_curve.grid(True, alpha=0.25)
+    if losses.size:
+        x = np.arange(losses.size, dtype=np.int32)
+        ax_curve.plot(x, np.maximum(losses, 1e-9), color="tab:blue", linewidth=1.6)
+        for marker in resolution_markers:
+            if 0 <= marker < losses.size:
+                ax_curve.axvline(marker, color="#aaaaaa", alpha=0.18, linewidth=1.0)
+        for marker in batch_markers:
+            if 0 <= marker < losses.size:
+                ax_curve.axvline(marker, color="#2a9d8f", alpha=0.08, linewidth=0.8)
+        for stage, marker in stage_markers:
+            if 0 <= marker < losses.size:
+                ax_curve.axvline(marker, color="#e76f51", alpha=0.20, linewidth=1.2)
+                ax_curve.text(
+                    marker,
+                    max(float(np.max(losses)), 1e-6),
+                    stage,
+                    rotation=90,
+                    va="top",
+                    ha="right",
+                    fontsize=8,
+                    color="#6d2e1f",
+                )
+
+    fig.suptitle(
+        (
+            f"Sequential Primitive Reconstruction | stage={stage_name} | "
+            f"iteration={iteration} | loss={current_loss:.6f} | {status_line}"
+        ),
+        fontsize=13,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+
+
+def _figure_to_rgb(fig) -> np.ndarray:
+    fig.canvas.draw()
+    rgba = np.asarray(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    return np.array(rgba[:, :, :3], copy=True)
 
 
 def handle_phase7_control_key(
@@ -561,6 +650,164 @@ def run_phase7_headless(
     )
 
 
+def record_phase7_demo_gif(
+    *,
+    target_image: np.ndarray,
+    segmentation_map: np.ndarray | None,
+    plan: Phase7Plan,
+    random_seed: int,
+    minutes: float,
+    output_path: Path,
+    hard_timeout_seconds: float | None = None,
+    max_total_steps: int | None = None,
+    stage_checkpoint_callback=None,
+    frame_stride: int = 2,
+    frame_duration_ms: int = 120,
+) -> tuple[Phase7ExecutionResult, dict[str, int | float | str]]:
+    del segmentation_map
+    target = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
+    controls = Phase7ControlState()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=120)
+    frames: list[Image.Image] = []
+    update_events = 0
+    captured_frames = 0
+    first_loss: float | None = None
+    last_loss: float | None = None
+
+    def _capture(
+        canvas: np.ndarray,
+        losses: list[float],
+        resolution_markers: list[int],
+        batch_markers: list[int],
+        stage_name: str,
+        iteration: int,
+        status: str,
+        stage_markers: list[tuple[str, int]],
+        polygon_count: int,
+    ) -> None:
+        nonlocal captured_frames, first_loss, last_loss
+        display_canvas = _resize_rgb(
+            canvas,
+            width=target.shape[1],
+            height=target.shape[0],
+        )
+        loss_arr = np.asarray(losses, dtype=np.float64)
+        if first_loss is None:
+            first_loss = (
+                float(loss_arr[-1]) if loss_arr.size else _rgb_mse(display_canvas, target)
+            )
+        last_loss = (
+            float(loss_arr[-1]) if loss_arr.size else _rgb_mse(display_canvas, target)
+        )
+        _draw_dashboard(
+            fig=fig,
+            axes=np.asarray(axes),
+            target=target,
+            canvas=np.clip(display_canvas, 0.0, 1.0).astype(np.float32, copy=False),
+            losses=loss_arr,
+            resolution_markers=resolution_markers,
+            batch_markers=batch_markers,
+            stage_markers=stage_markers,
+            polygon_count=polygon_count,
+            iteration=iteration,
+            stage_name=stage_name,
+            status_line=status,
+        )
+        frames.append(Image.fromarray(_figure_to_rgb(fig), mode="RGB"))
+        captured_frames += 1
+
+    def _shared_update(
+        canvas: np.ndarray,
+        polygons: LivePolygonBatch,
+        _polygon_resolution: int,
+        losses: list[float],
+        resolution_markers: list[int],
+        batch_markers: list[int],
+        stage_name: str,
+        iteration: int,
+        _loss: float,
+        _stage_iteration: int,
+        _stage_start_loss: float,
+        _stage_position_updates: int,
+        running: bool,
+        status: str,
+        stage_markers: list[tuple[str, int]],
+    ) -> None:
+        nonlocal update_events
+        update_events += 1
+        should_capture = (
+            update_events == 1
+            or status == "finished"
+            or status == "stage-start"
+            or (int(frame_stride) <= 1)
+            or (update_events % int(max(frame_stride, 1)) == 0)
+            or not running
+        )
+        if should_capture:
+            _capture(
+                canvas,
+                losses,
+                resolution_markers,
+                batch_markers,
+                stage_name,
+                iteration,
+                status,
+                stage_markers,
+                int(polygons.count),
+            )
+
+    result = execute_phase7_schedule(
+        target_image=target,
+        plan=plan,
+        random_seed=random_seed,
+        minutes=minutes,
+        hard_timeout_seconds=hard_timeout_seconds,
+        controls=controls,
+        shared_update_callback=_shared_update,
+        max_total_steps=max_total_steps,
+        stage_checkpoint_callback=stage_checkpoint_callback,
+    )
+
+    if not frames:
+        _capture(
+            result.final_canvas,
+            result.loss_history,
+            result.resolution_markers,
+            result.batch_markers,
+            "done",
+            result.iterations,
+            "finished",
+            result.stage_markers,
+            result.polygon_count,
+        )
+
+    frames[0].save(
+        output_path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=int(max(frame_duration_ms, 20)),
+        loop=0,
+        optimize=False,
+    )
+    plt.close(fig)
+
+    metadata: dict[str, int | float | str] = {
+        "output_path": str(output_path),
+        "frames_saved": int(captured_frames),
+        "update_events": int(update_events),
+        "accepted_polygons": int(result.polygon_count),
+        "iterations": int(result.iterations),
+        "initial_recorded_loss": float(first_loss if first_loss is not None else result.final_loss),
+        "final_recorded_loss": float(last_loss if last_loss is not None else result.final_loss),
+        "frame_stride": int(max(frame_stride, 1)),
+        "frame_duration_ms": int(max(frame_duration_ms, 20)),
+    }
+    return result, metadata
+
+
 def run_phase7_live_display(
     *,
     target_image: np.ndarray,
@@ -641,12 +888,7 @@ def run_phase7_live_display(
     worker = threading.Thread(target=_worker, daemon=True)
     worker.start()
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    ax_target, ax_canvas, ax_curve = axes
-    ax_target.imshow(target)
-    ax_target.set_title("Target")
-    ax_target.set_xticks([])
-    ax_target.set_yticks([])
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
 
     def _save_screenshot():
         return None
@@ -677,23 +919,29 @@ def run_phase7_live_display(
         with lock:
             canvas = np.array(shared.canvas, copy=True)
             losses = np.array(shared.loss_history, dtype=np.float64)
-            title = f"{shared.stage_name} | shapes={shared.polygon_count} | {shared.status_line}"
+            resolution_markers = list(shared.resolution_markers)
+            batch_markers = list(shared.batch_markers)
+            stage_markers = list(shared.stage_markers)
+            polygon_count = int(shared.polygon_count)
+            iteration = int(shared.iteration)
+            stage_name = str(shared.stage_name)
+            status_line = str(shared.status_line)
             running = bool(shared.running)
 
-        ax_canvas.clear()
-        ax_canvas.imshow(canvas)
-        ax_canvas.set_title(title)
-        ax_canvas.set_xticks([])
-        ax_canvas.set_yticks([])
-
-        ax_curve.clear()
-        ax_curve.set_title("RGB MSE")
-        ax_curve.set_xlabel("Accepted shape")
-        ax_curve.set_ylabel("MSE")
-        ax_curve.set_yscale("log")
-        ax_curve.grid(True, alpha=0.25)
-        if losses.size:
-            ax_curve.plot(np.arange(losses.size), np.maximum(losses, 1e-9), color="tab:blue")
+        _draw_dashboard(
+            fig=fig,
+            axes=np.asarray(axes),
+            target=target,
+            canvas=canvas,
+            losses=losses,
+            resolution_markers=resolution_markers,
+            batch_markers=batch_markers,
+            stage_markers=stage_markers,
+            polygon_count=polygon_count,
+            iteration=iteration,
+            stage_name=stage_name,
+            status_line=status_line,
+        )
 
         if controls.quit_requested and not running:
             anim.event_source.stop()
@@ -708,7 +956,6 @@ def run_phase7_live_display(
     )
     _ = anim
 
-    plt.tight_layout()
     plt.show()
     controls.quit_requested = True
     worker.join(timeout=8.0)

@@ -1,0 +1,72 @@
+{
+  "run_id": "face_20260401_173448",
+  "image_path": "C:/Users/ahada/Documents/abdulahad/evolutionary-art/python/targets/face.png",
+  "fit_mode": "crop",
+  "resolution": 200,
+  "minutes": 5.0,
+  "seed": 42,
+  "polygons": 1500,
+  "iterations": 362,
+  "accepted_polygons": 362,
+  "final_metrics": {
+    "rgb_mse": 0.003907470032572746,
+    "rmse": 0.06250975949859947,
+    "psnr_db": 24.081043440159284,
+    "ssim": 0.8420975208282471,
+    "lab_mse": 19.201162338256836,
+    "gradient_mse": 0.0004604955611284822,
+    "gradient_mae": 0.00980790238827467,
+    "gradient_corr": 0.9267402934831551
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "foundation",
+      "image_path": "outputs/stage_checkpoints/face_20260401_173448/stage_foundation.png",
+      "resolution": 100.0,
+      "accepted_shapes": 11.0,
+      "stage_loss": 0.03546557575464249,
+      "softness": 0.75,
+      "rgb_mse": 0.0357404462993145,
+      "rmse": 0.18905143823656698,
+      "psnr_db": 14.468400286597145,
+      "ssim": 0.7149825096130371,
+      "lab_mse": 154.2380828857422,
+      "gradient_mse": 0.0027969994116574526,
+      "gradient_mae": 0.016863344237208366,
+      "gradient_corr": 0.24683700269648512
+    },
+    {
+      "stage": "structure",
+      "image_path": "outputs/stage_checkpoints/face_20260401_173448/stage_structure.png",
+      "resolution": 150.0,
+      "accepted_shapes": 201.0,
+      "stage_loss": 0.0024294848553836346,
+      "softness": 0.32,
+      "rgb_mse": 0.002473667496815324,
+      "rmse": 0.04973597789141502,
+      "psnr_db": 26.066586773839752,
+      "ssim": 0.871950626373291,
+      "lab_mse": 12.269187927246094,
+      "gradient_mse": 0.0006247884011827409,
+      "gradient_mae": 0.00956080760806799,
+      "gradient_corr": 0.9136413140552343
+    },
+    {
+      "stage": "detail",
+      "image_path": "outputs/stage_checkpoints/face_20260401_173448/stage_detail.png",
+      "resolution": 200.0,
+      "accepted_shapes": 362.0,
+      "stage_loss": 0.003907470032572746,
+      "softness": 0.055,
+      "rgb_mse": 0.003907470032572746,
+      "rmse": 0.06250975949859947,
+      "psnr_db": 24.081043440159284,
+      "ssim": 0.8420975208282471,
+      "lab_mse": 19.201162338256836,
+      "gradient_mse": 0.0004604955611284822,
+      "gradient_mae": 0.00980790238827467,
+      "gradient_corr": 0.9267402934831551
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/face_20260401_173448"
+}

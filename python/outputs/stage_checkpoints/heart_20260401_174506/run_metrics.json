@@ -1,0 +1,72 @@
+{
+  "run_id": "heart_20260401_174506",
+  "image_path": "C:/Users/ahada/Documents/abdulahad/evolutionary-art/python/targets/heart.png",
+  "fit_mode": "crop",
+  "resolution": 200,
+  "minutes": 5.0,
+  "seed": 42,
+  "polygons": 1500,
+  "iterations": 375,
+  "accepted_polygons": 375,
+  "final_metrics": {
+    "rgb_mse": 0.001955693354830146,
+    "rmse": 0.044223221895630195,
+    "psnr_db": 27.08699239908966,
+    "ssim": 0.8878293633460999,
+    "lab_mse": 11.986295700073242,
+    "gradient_mse": 0.00030114621040411294,
+    "gradient_mae": 0.007428661920130253,
+    "gradient_corr": 0.9307398991924515
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "foundation",
+      "image_path": "outputs/stage_checkpoints/heart_20260401_174506/stage_foundation.png",
+      "resolution": 100.0,
+      "accepted_shapes": 14.0,
+      "stage_loss": 0.023133961483836174,
+      "softness": 0.75,
+      "rgb_mse": 0.023340342566370964,
+      "rmse": 0.15277546454313587,
+      "psnr_db": 16.318927741007254,
+      "ssim": 0.800792396068573,
+      "lab_mse": 150.68258666992188,
+      "gradient_mse": 0.0016809498192742467,
+      "gradient_mae": 0.011740010231733322,
+      "gradient_corr": 0.30838397230233383
+    },
+    {
+      "stage": "structure",
+      "image_path": "outputs/stage_checkpoints/heart_20260401_174506/stage_structure.png",
+      "resolution": 150.0,
+      "accepted_shapes": 234.0,
+      "stage_loss": 0.0010134950280189514,
+      "softness": 0.32,
+      "rgb_mse": 0.0010456532472744584,
+      "rmse": 0.032336562081867304,
+      "psnr_db": 29.806123095049102,
+      "ssim": 0.9491376876831055,
+      "lab_mse": 6.265252113342285,
+      "gradient_mse": 0.00021897382976021618,
+      "gradient_mae": 0.005166769027709961,
+      "gradient_corr": 0.9552074575966697
+    },
+    {
+      "stage": "detail",
+      "image_path": "outputs/stage_checkpoints/heart_20260401_174506/stage_detail.png",
+      "resolution": 200.0,
+      "accepted_shapes": 375.0,
+      "stage_loss": 0.001955693354830146,
+      "softness": 0.055,
+      "rgb_mse": 0.001955693354830146,
+      "rmse": 0.044223221895630195,
+      "psnr_db": 27.08699239908966,
+      "ssim": 0.8878293633460999,
+      "lab_mse": 11.986295700073242,
+      "gradient_mse": 0.00030114621040411294,
+      "gradient_mae": 0.007428661920130253,
+      "gradient_corr": 0.9307398991924515
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/heart_20260401_174506"
+}

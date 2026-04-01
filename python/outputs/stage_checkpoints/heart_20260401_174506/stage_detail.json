@@ -1,0 +1,16 @@
+{
+  "stage": "detail",
+  "image_path": "outputs/stage_checkpoints/heart_20260401_174506/stage_detail.png",
+  "resolution": 200.0,
+  "accepted_shapes": 375.0,
+  "stage_loss": 0.001955693354830146,
+  "softness": 0.055,
+  "rgb_mse": 0.001955693354830146,
+  "rmse": 0.044223221895630195,
+  "psnr_db": 27.08699239908966,
+  "ssim": 0.8878293633460999,
+  "lab_mse": 11.986295700073242,
+  "gradient_mse": 0.00030114621040411294,
+  "gradient_mae": 0.007428661920130253,
+  "gradient_corr": 0.9307398991924515
+}

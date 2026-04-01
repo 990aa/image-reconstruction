@@ -120,12 +120,30 @@ def _accuracy_metrics(target: np.ndarray, canvas: np.ndarray) -> dict[str, float
         )
     )
     lab_mse = float(perceptual_mse_lab(canvas, target))
+    target_gray = np.mean(np.clip(target, 0.0, 1.0), axis=2, dtype=np.float32)
+    canvas_gray = np.mean(np.clip(canvas, 0.0, 1.0), axis=2, dtype=np.float32)
+    tgy, tgx = np.gradient(target_gray)
+    cgy, cgx = np.gradient(canvas_gray)
+    target_grad = np.hypot(tgx, tgy).astype(np.float32, copy=False)
+    canvas_grad = np.hypot(cgx, cgy).astype(np.float32, copy=False)
+    grad_diff = target_grad - canvas_grad
+    gradient_mse = float(np.mean(grad_diff * grad_diff, dtype=np.float32))
+    gradient_mae = float(np.mean(np.abs(grad_diff), dtype=np.float32))
+    tflat = target_grad.reshape(-1)
+    cflat = canvas_grad.reshape(-1)
+    if float(np.std(tflat)) <= 1e-12 or float(np.std(cflat)) <= 1e-12:
+        gradient_corr = 0.0
+    else:
+        gradient_corr = float(np.corrcoef(tflat, cflat)[0, 1])
     return {
         "rgb_mse": rgb_mse,
         "rmse": rmse,
         "psnr_db": psnr,
         "ssim": ssim,
         "lab_mse": lab_mse,
+        "gradient_mse": gradient_mse,
+        "gradient_mae": gradient_mae,
+        "gradient_corr": gradient_corr,
     }
 
 
@@ -417,6 +435,9 @@ def main() -> int:
     print(f"final_lab_mse: {final_metrics['lab_mse']:.6f}")
     print(f"final_psnr_db: {final_metrics['psnr_db']:.3f}")
     print(f"final_ssim: {final_metrics['ssim']:.5f}")
+    print(f"final_gradient_mse: {final_metrics['gradient_mse']:.6f}")
+    print(f"final_gradient_mae: {final_metrics['gradient_mae']:.5f}")
+    print(f"final_gradient_corr: {final_metrics['gradient_corr']:.5f}")
     background = np.mean(preprocessed.target_rgb, axis=(0, 1), dtype=np.float32)
     initial_mse = float(
         np.mean(

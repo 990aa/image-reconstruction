@@ -1,0 +1,31 @@
+{
+  "target": "internet_graphic.jpg",
+  "original_size": [
+    1000,
+    1000
+  ],
+  "gif_path": "outputs/demo_viz/internet_graphic_live_demo.gif",
+  "accepted_polygons": 65,
+  "iterations": 65,
+  "metrics": {
+    "rgb_mse": 0.0034736720845103264,
+    "rmse": 0.05893786630435756,
+    "psnr_db": 24.59211181458679,
+    "ssim": 0.6140036582946777,
+    "lab_mse": 19.06108283996582,
+    "gradient_mse": 0.0017710308311507106,
+    "gradient_mae": 0.02457251027226448,
+    "gradient_corr": 0.275076895059542
+  },
+  "demo_metadata": {
+    "output_path": "C:\\Users\\ahada\\Documents\\abdulahad\\evolutionary-art\\python\\outputs\\demo_viz\\internet_graphic_live_demo.gif",
+    "frames_saved": 35,
+    "update_events": 68,
+    "accepted_polygons": 65,
+    "iterations": 65,
+    "initial_recorded_loss": 0.07181783765554428,
+    "final_recorded_loss": 0.0025588152930140495,
+    "frame_stride": 2,
+    "frame_duration_ms": 100
+  }
+}

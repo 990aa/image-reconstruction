@@ -1,4 +1,4 @@
-# Approach Retrospective
+# Sequential Perceptual Primitive Reconstruction: Approach Retrospective
 
 ## Project Overview
 This project reconstructs a target image with explicit geometric primitives instead of latent image generation. The system starts from a simple canvas, repeatedly chooses a new primitive, rasterizes it with alpha blending, and measures whether that addition reduces reconstruction error against the target.
@@ -163,6 +163,81 @@ Why it was not the final best:
 
 Takeaway:
 - the baseline proved the strategy, and the April 1 tuning proved that the strategy still had substantial headroom.
+
+### 2.6. April 1 Detail-Pass Tightening Trial
+What it did:
+- reduced detail-stage maximum size from `0.040 * resolution` to `0.022 * resolution`
+- hardened detail-stage edges by lowering softness from `0.055` to `0.018`
+- reduced the detail guide-map blend from `high + 0.40 * residual` to `high + 0.25 * residual`
+- shortened hill-climber stagnation tolerance from `max(12, steps // 4)` to `max(6, steps // 8)`
+
+What it was trying to achieve:
+- smaller detail primitives
+- crisper edges
+- faster mutation turnover
+- slightly more structure-focused detail placement
+
+Observed result on the same 5-minute grape benchmark:
+- run id: `grape_20260401_170154`
+- `rgb_mse = 0.017842`
+- `ssim = 0.50300`
+- `lab_mse = 87.270`
+- `gradient_mse = 0.00701`
+- `gradient_mae = 0.05562`
+- `gradient_corr = 0.59730`
+- `accepted_polygons = 661`
+
+Why it failed:
+- the detail pass became too narrow and too hard-edged relative to the broader masses built earlier
+- reducing `size_max` limited the ability of detail-stage shapes to bridge medium-scale residual blobs
+- cutting the residual blend from `0.40` to `0.25` pulled the detail stage too far toward structure and away from unresolved color mass
+- the faster stagnation exit increased throughput, but it also reduced local refinement depth for difficult placements
+
+Comparison against the active best:
+- active best `grape_20260401_164124` remains better on every tracked metric
+- `rgb_mse`: `0.013905` best vs `0.017842` trial
+- `ssim`: `0.55509` best vs `0.50300` trial
+- `lab_mse`: `71.802` best vs `87.270` trial
+- `gradient_corr`: `0.69528` best vs `0.59730` trial
+
+Takeaway:
+- the current best branch benefits from a detail pass that is sharper than the older baseline, but not so sharp and small that it stops repairing medium-scale residual structure.
+
+### 2.7. Detail-Stage LAB Ranking Trial
+What it did:
+- kept the tuned three-stage schedule unchanged
+- switched only the detail-stage candidate ranking objective from RGB MSE to LAB MSE
+- preserved RGB MSE as the true commit-time acceptance gate
+
+Why it looked promising:
+- LAB space is closer to human perceptual distance
+- the change was local to candidate ranking, not to color solving or acceptance
+- if it worked, it would have improved detail placement without destabilizing the rest of the pipeline
+
+Throughput check before implementation:
+- the current best branch processed about `76,767` candidate evaluations in `300.42 s`
+- that is about `255.53` evaluations per second
+- this confirmed that full-frame LAB conversion inside the detail-stage ranking loop would be expensive on CPU
+
+Observed result on the same 5-minute grape benchmark:
+- run id: `grape_20260401_172227`
+- `rgb_mse = 0.024959`
+- `ssim = 0.38500`
+- `lab_mse = 113.053`
+- `accepted_polygons = 361`
+
+Why it failed:
+- the perceptual ranking signal was far more expensive than RGB ranking, so the 5-minute budget bought many fewer accepted shapes
+- because the analytic color solver and the acceptance gate already operate well under RGB residuals, the slower LAB ranking did not add enough candidate-quality benefit to compensate
+- the detail stage became throughput-limited rather than search-quality-limited
+
+Comparison against the active best:
+- active best full-suite grape run: `rgb_mse = 0.021227`, `ssim = 0.43940`, `gradient_corr = 0.53904`
+- earlier isolated best grape benchmark on the same tuned branch: `rgb_mse = 0.013905`, `ssim = 0.55509`, `gradient_corr = 0.69528`
+- LAB ranking was worse than both references
+
+Takeaway:
+- perceptual ranking is not automatically helpful if it reduces candidate throughput too much; on this CPU budget, RGB ranking remains the better choice for the detail stage.
 
 ### 3. Ultra-Low-Alpha Watercolor Constraint
 What it did:

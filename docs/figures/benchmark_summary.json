@@ -1,0 +1,105 @@
+{
+  "results": [
+    {
+      "run_id": "face_20260401_173448",
+      "image": "face.png",
+      "accepted_polygons": 362,
+      "rgb_mse": 0.003907470032572746,
+      "ssim": 0.8420975208282471,
+      "psnr_db": 24.081043440159284,
+      "lab_mse": 19.201162338256836,
+      "gradient_mse": 0.0004604955611284822,
+      "gradient_mae": 0.00980790238827467,
+      "gradient_corr": 0.9267402934831551,
+      "run_dir": "outputs/stage_checkpoints/face_20260401_173448"
+    },
+    {
+      "run_id": "grape_20260401_173957",
+      "image": "grape.jpg",
+      "accepted_polygons": 406,
+      "rgb_mse": 0.021226780489087105,
+      "ssim": 0.43940410017967224,
+      "psnr_db": 16.731158712062914,
+      "lab_mse": 102.2603530883789,
+      "gradient_mse": 0.008581225760281086,
+      "gradient_mae": 0.05815552920103073,
+      "gradient_corr": 0.5390442772993541,
+      "run_dir": "outputs/stage_checkpoints/grape_20260401_173957"
+    },
+    {
+      "run_id": "heart_20260401_174506",
+      "image": "heart.png",
+      "accepted_polygons": 375,
+      "rgb_mse": 0.001955693354830146,
+      "ssim": 0.8878293633460999,
+      "psnr_db": 27.08699239908966,
+      "lab_mse": 11.986295700073242,
+      "gradient_mse": 0.00030114621040411294,
+      "gradient_mae": 0.007428661920130253,
+      "gradient_corr": 0.9307398991924515,
+      "run_dir": "outputs/stage_checkpoints/heart_20260401_174506"
+    },
+    {
+      "run_id": "internet_graphic_20260401_175013",
+      "image": "internet_graphic.jpg",
+      "accepted_polygons": 369,
+      "rgb_mse": 0.002101376187056303,
+      "ssim": 0.7191656231880188,
+      "psnr_db": 26.77496193506417,
+      "lab_mse": 12.519306182861328,
+      "gradient_mse": 0.0010792240500450134,
+      "gradient_mae": 0.019823938608169556,
+      "gradient_corr": 0.6234085700652617,
+      "run_dir": "outputs/stage_checkpoints/internet_graphic_20260401_175013"
+    },
+    {
+      "run_id": "internet_landscape_20260401_175520",
+      "image": "internet_landscape.jpg",
+      "accepted_polygons": 391,
+      "rgb_mse": 5.215708370087668e-05,
+      "ssim": 0.97599858045578,
+      "psnr_db": 42.82686699638568,
+      "lab_mse": 0.5625717043876648,
+      "gradient_mse": 1.3713273801840842e-05,
+      "gradient_mae": 0.002441507764160633,
+      "gradient_corr": 0.856811542789968,
+      "run_dir": "outputs/stage_checkpoints/internet_landscape_20260401_175520"
+    },
+    {
+      "run_id": "internet_portrait_20260401_180027",
+      "image": "internet_portrait.jpg",
+      "accepted_polygons": 400,
+      "rgb_mse": 0.021520525217056274,
+      "ssim": 0.43419507145881653,
+      "psnr_db": 16.671471337451514,
+      "lab_mse": 103.32633209228516,
+      "gradient_mse": 0.008724807761609554,
+      "gradient_mae": 0.05854767933487892,
+      "gradient_corr": 0.5281727537058918,
+      "run_dir": "outputs/stage_checkpoints/internet_portrait_20260401_180027"
+    },
+    {
+      "run_id": "logo_20260401_180536",
+      "image": "logo.png",
+      "accepted_polygons": 339,
+      "rgb_mse": 0.0019386782078072429,
+      "ssim": 0.9441474080085754,
+      "psnr_db": 27.124942714635498,
+      "lab_mse": 5.569024085998535,
+      "gradient_mse": 0.000229425189900212,
+      "gradient_mae": 0.0051862928085029125,
+      "gradient_corr": 0.9733232728361458,
+      "run_dir": "outputs/stage_checkpoints/logo_20260401_180536"
+    }
+  ],
+  "averages": {
+    "rgb_mse": 0.007528954367444385,
+    "ssim": 0.7489768096378872,
+    "psnr_db": 25.89963393354982,
+    "lab_mse": 36.48929217032024,
+    "gradient_mse": 0.0027700054010243286,
+    "gradient_mae": 0.02305593028930681,
+    "gradient_corr": 0.7683200870531754,
+    "accepted_polygons": 377.42857142857144
+  }
+}

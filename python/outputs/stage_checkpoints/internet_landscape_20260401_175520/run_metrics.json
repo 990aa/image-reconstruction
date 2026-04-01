@@ -1,0 +1,72 @@
+{
+  "run_id": "internet_landscape_20260401_175520",
+  "image_path": "C:/Users/ahada/Documents/abdulahad/evolutionary-art/python/targets/internet_landscape.jpg",
+  "fit_mode": "crop",
+  "resolution": 200,
+  "minutes": 5.0,
+  "seed": 42,
+  "polygons": 1500,
+  "iterations": 391,
+  "accepted_polygons": 391,
+  "final_metrics": {
+    "rgb_mse": 5.215708370087668e-05,
+    "rmse": 0.007221986132697617,
+    "psnr_db": 42.82686699638568,
+    "ssim": 0.97599858045578,
+    "lab_mse": 0.5625717043876648,
+    "gradient_mse": 1.3713273801840842e-05,
+    "gradient_mae": 0.002441507764160633,
+    "gradient_corr": 0.856811542789968
+  },
+  "stage_checkpoints": [
+    {
+      "stage": "foundation",
+      "image_path": "outputs/stage_checkpoints/internet_landscape_20260401_175520/stage_foundation.png",
+      "resolution": 100.0,
+      "accepted_shapes": 16.0,
+      "stage_loss": 0.0002980625140480697,
+      "softness": 0.75,
+      "rgb_mse": 0.000314615317620337,
+      "rmse": 0.017737398840313,
+      "psnr_db": 35.02220136779342,
+      "ssim": 0.95765620470047,
+      "lab_mse": 2.9119174480438232,
+      "gradient_mse": 2.5900719265337102e-05,
+      "gradient_mae": 0.0027445454616099596,
+      "gradient_corr": 0.6897405702064304
+    },
+    {
+      "stage": "structure",
+      "image_path": "outputs/stage_checkpoints/internet_landscape_20260401_175520/stage_structure.png",
+      "resolution": 150.0,
+      "accepted_shapes": 245.0,
+      "stage_loss": 3.448707502684556e-05,
+      "softness": 0.32,
+      "rgb_mse": 4.172997432760894e-05,
+      "rmse": 0.006459874172738115,
+      "psnr_db": 43.79551882467328,
+      "ssim": 0.9751641154289246,
+      "lab_mse": 0.4787527024745941,
+      "gradient_mse": 1.4379094864125364e-05,
+      "gradient_mae": 0.0024260315112769604,
+      "gradient_corr": 0.8469254357588252
+    },
+    {
+      "stage": "detail",
+      "image_path": "outputs/stage_checkpoints/internet_landscape_20260401_175520/stage_detail.png",
+      "resolution": 200.0,
+      "accepted_shapes": 391.0,
+      "stage_loss": 5.215708370087668e-05,
+      "softness": 0.055,
+      "rgb_mse": 5.215708370087668e-05,
+      "rmse": 0.007221986132697617,
+      "psnr_db": 42.82686699638568,
+      "ssim": 0.97599858045578,
+      "lab_mse": 0.5625717043876648,
+      "gradient_mse": 1.3713273801840842e-05,
+      "gradient_mae": 0.002441507764160633,
+      "gradient_corr": 0.856811542789968
+    }
+  ],
+  "run_dir": "outputs/stage_checkpoints/internet_landscape_20260401_175520"
+}

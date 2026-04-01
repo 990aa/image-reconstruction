@@ -1,0 +1,31 @@
+{
+  "target": "internet_landscape.jpg",
+  "original_size": [
+    1200,
+    800
+  ],
+  "gif_path": "outputs/demo_viz/internet_landscape_live_demo.gif",
+  "accepted_polygons": 50,
+  "iterations": 50,
+  "metrics": {
+    "rgb_mse": 0.00026591980713419616,
+    "rmse": 0.01630704777494063,
+    "psnr_db": 35.75249312880131,
+    "ssim": 0.9666333198547363,
+    "lab_mse": 1.8614733219146729,
+    "gradient_mse": 2.2505668312078342e-05,
+    "gradient_mae": 0.0026646670885384083,
+    "gradient_corr": 0.7511219874680204
+  },
+  "demo_metadata": {
+    "output_path": "C:\\Users\\ahada\\Documents\\abdulahad\\evolutionary-art\\python\\outputs\\demo_viz\\internet_landscape_live_demo.gif",
+    "frames_saved": 28,
+    "update_events": 53,
+    "accepted_polygons": 50,
+    "iterations": 50,
+    "initial_recorded_loss": 0.04635705053806305,
+    "final_recorded_loss": 9.316261275671422e-05,
+    "frame_stride": 2,
+    "frame_duration_ms": 100
+  }
+}
