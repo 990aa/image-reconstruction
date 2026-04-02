@@ -37,13 +37,13 @@ from src.live_optimizer import (
 
 
 @dataclass(frozen=True)
-class Phase7Plan:
+class phasePlan:
     polygon_budget: int
     stages: tuple[SequentialStageConfig, ...]
 
 
 @dataclass(frozen=True)
-class Phase7ExecutionResult:
+class phaseExecutionResult:
     final_canvas: np.ndarray
     final_loss: float
     polygon_count: int
@@ -55,7 +55,7 @@ class Phase7ExecutionResult:
 
 
 @dataclass
-class Phase7ControlState:
+class phaseControlState:
     paused: bool = False
     quit_requested: bool = False
     force_growth_requests: int = 0
@@ -83,12 +83,12 @@ class _SharedViewState:
     status_line: str
 
 
-def build_phase7_plan(
+def build_phase_plan(
     *,
     base_resolution: int,
     polygon_budget: int,
     complexity_score: float,
-) -> Phase7Plan:
+) -> phasePlan:
     budget = max(1, int(polygon_budget))
     _ = float(complexity_score)
 
@@ -159,7 +159,7 @@ def build_phase7_plan(
             mutation_rotation_deg=15.0,
         ),
     )
-    return Phase7Plan(polygon_budget=budget, stages=stages)
+    return phasePlan(polygon_budget=budget, stages=stages)
 
 
 def _rgb_mse(a: np.ndarray, b: np.ndarray) -> float:
@@ -336,10 +336,10 @@ def _figure_to_rgb(fig) -> np.ndarray:
     return np.array(rgba[:, :, :3], copy=True)
 
 
-def handle_phase7_control_key(
+def handle_phase_control_key(
     key: str,
     *,
-    controls: Phase7ControlState,
+    controls: phaseControlState,
     screenshot_callback,
     quit_callback,
 ) -> str:
@@ -390,18 +390,18 @@ def handle_phase7_control_key(
     return "ignored"
 
 
-def execute_phase7_schedule(
+def execute_phase_schedule(
     *,
     target_image: np.ndarray,
-    plan: Phase7Plan,
+    plan: phasePlan,
     random_seed: int,
     minutes: float,
     hard_timeout_seconds: float | None = None,
-    controls: Phase7ControlState,
+    controls: phaseControlState,
     shared_update_callback,
     max_total_steps: int | None = None,
     stage_checkpoint_callback=None,
-) -> Phase7ExecutionResult:
+) -> phaseExecutionResult:
     target = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
     base_resolution = int(target.shape[0])
     rng = np.random.default_rng(random_seed)
@@ -592,7 +592,7 @@ def execute_phase7_schedule(
         polygons = final_optimizer.polygons.copy()
 
     _emit_update(final_canvas, base_resolution, "done", "finished")
-    return Phase7ExecutionResult(
+    return phaseExecutionResult(
         final_canvas=np.array(final_canvas, copy=True),
         final_loss=float(final_loss),
         polygon_count=int(polygons.count),
@@ -604,19 +604,19 @@ def execute_phase7_schedule(
     )
 
 
-def run_phase7_headless(
+def run_phase_headless(
     *,
     target_image: np.ndarray,
     segmentation_map: np.ndarray | None,
-    plan: Phase7Plan,
+    plan: phasePlan,
     random_seed: int,
     minutes: float,
     hard_timeout_seconds: float | None = None,
     max_total_steps: int | None = None,
     stage_checkpoint_callback=None,
-) -> Phase7ExecutionResult:
+) -> phaseExecutionResult:
     del segmentation_map
-    controls = Phase7ControlState()
+    controls = phaseControlState()
 
     def _noop_update(
         _canvas: np.ndarray,
@@ -637,7 +637,7 @@ def run_phase7_headless(
     ) -> None:
         return
 
-    return execute_phase7_schedule(
+    return execute_phase_schedule(
         target_image=target_image,
         plan=plan,
         random_seed=random_seed,
@@ -650,11 +650,11 @@ def run_phase7_headless(
     )
 
 
-def record_phase7_demo_gif(
+def record_phase_demo_gif(
     *,
     target_image: np.ndarray,
     segmentation_map: np.ndarray | None,
-    plan: Phase7Plan,
+    plan: phasePlan,
     random_seed: int,
     minutes: float,
     output_path: Path,
@@ -663,10 +663,10 @@ def record_phase7_demo_gif(
     stage_checkpoint_callback=None,
     frame_stride: int = 2,
     frame_duration_ms: int = 120,
-) -> tuple[Phase7ExecutionResult, dict[str, int | float | str]]:
+) -> tuple[phaseExecutionResult, dict[str, int | float | str]]:
     del segmentation_map
     target = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
-    controls = Phase7ControlState()
+    controls = phaseControlState()
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -759,7 +759,7 @@ def record_phase7_demo_gif(
                 int(polygons.count),
             )
 
-    result = execute_phase7_schedule(
+    result = execute_phase_schedule(
         target_image=target,
         plan=plan,
         random_seed=random_seed,
@@ -808,11 +808,11 @@ def record_phase7_demo_gif(
     return result, metadata
 
 
-def run_phase7_live_display(
+def run_phase_live_display(
     *,
     target_image: np.ndarray,
     segmentation_map: np.ndarray | None,
-    plan: Phase7Plan,
+    plan: phasePlan,
     random_seed: int,
     minutes: float,
     hard_timeout_seconds: float | None = None,
@@ -820,7 +820,7 @@ def run_phase7_live_display(
     close_after_seconds: float | None = None,
     max_total_steps: int | None = None,
     stage_checkpoint_callback=None,
-) -> Phase7ExecutionResult:
+) -> phaseExecutionResult:
     del segmentation_map
     target = np.clip(target_image.astype(np.float32, copy=False), 0.0, 1.0)
     shared = _SharedViewState(
@@ -836,9 +836,9 @@ def run_phase7_live_display(
         running=True,
         status_line="initializing",
     )
-    controls = Phase7ControlState()
+    controls = phaseControlState()
     lock = threading.Lock()
-    result_holder: dict[str, Phase7ExecutionResult] = {}
+    result_holder: dict[str, phaseExecutionResult] = {}
 
     def _update_shared(
         canvas: np.ndarray,
@@ -873,7 +873,7 @@ def run_phase7_live_display(
             shared.status_line = str(status)
 
     def _worker() -> None:
-        result_holder["result"] = execute_phase7_schedule(
+        result_holder["result"] = execute_phase_schedule(
             target_image=target,
             plan=plan,
             random_seed=random_seed,
@@ -897,7 +897,7 @@ def run_phase7_live_display(
         controls.quit_requested = True
 
     def _on_key(event) -> None:
-        handle_phase7_control_key(
+        handle_phase_control_key(
             str(event.key),
             controls=controls,
             screenshot_callback=_save_screenshot,
@@ -963,7 +963,7 @@ def run_phase7_live_display(
     if "result" in result_holder:
         return result_holder["result"]
 
-    return Phase7ExecutionResult(
+    return phaseExecutionResult(
         final_canvas=np.array(shared.canvas, copy=True),
         final_loss=_rgb_mse(shared.canvas, target),
         polygon_count=int(shared.polygon_count),

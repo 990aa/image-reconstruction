@@ -8,16 +8,16 @@ import numpy as np
 from PIL import Image
 
 from src.live_refiner import (
-    Phase7ControlState,
-    build_phase7_plan,
-    handle_phase7_control_key,
-    run_phase7_headless,
+    phaseControlState,
+    build_phase_plan,
+    handle_phase_control_key,
+    run_phase_headless,
 )
 from src.preprocessing import preprocess_target_array
 
 
 def test_plan_and_controls() -> None:
-    plan = build_phase7_plan(
+    plan = build_phase_plan(
         base_resolution=200,
         polygon_budget=220,
         complexity_score=0.5,
@@ -26,7 +26,7 @@ def test_plan_and_controls() -> None:
     assert [stage.name for stage in plan.stages] == ["foundation", "structure", "detail"]
     assert sum(stage.shapes_to_add for stage in plan.stages) == 220
 
-    controls = Phase7ControlState()
+    controls = phaseControlState()
     shot = {"value": False}
     quit_now = {"value": False}
 
@@ -36,7 +36,7 @@ def test_plan_and_controls() -> None:
     def do_quit() -> None:
         quit_now["value"] = True
 
-    assert handle_phase7_control_key(
+    assert handle_phase_control_key(
         "p",
         controls=controls,
         screenshot_callback=screenshot,
@@ -44,7 +44,7 @@ def test_plan_and_controls() -> None:
     ) == "pause"
     assert controls.paused
 
-    assert handle_phase7_control_key(
+    assert handle_phase_control_key(
         "r",
         controls=controls,
         screenshot_callback=screenshot,
@@ -52,7 +52,7 @@ def test_plan_and_controls() -> None:
     ) == "screenshot"
     assert shot["value"]
 
-    assert handle_phase7_control_key(
+    assert handle_phase_control_key(
         "v",
         controls=controls,
         screenshot_callback=screenshot,
@@ -60,7 +60,7 @@ def test_plan_and_controls() -> None:
     ) == "view-cycle"
     assert controls.view_mode_index == 1
 
-    assert handle_phase7_control_key(
+    assert handle_phase_control_key(
         "e",
         controls=controls,
         screenshot_callback=screenshot,
@@ -68,7 +68,7 @@ def test_plan_and_controls() -> None:
     ) == "residual-mode"
     assert controls.residual_mode_index == 1
 
-    assert handle_phase7_control_key(
+    assert handle_phase_control_key(
         "g",
         controls=controls,
         screenshot_callback=screenshot,
@@ -76,7 +76,7 @@ def test_plan_and_controls() -> None:
     ) == "force-growth"
     assert controls.force_growth_requests == 1
 
-    assert handle_phase7_control_key(
+    assert handle_phase_control_key(
         "q",
         controls=controls,
         screenshot_callback=screenshot,
@@ -101,13 +101,13 @@ def test_headless_refiner_adds_shapes_and_marks_stages() -> None:
         random_seed=9,
         base_resolution=96,
     )
-    plan = build_phase7_plan(
+    plan = build_phase_plan(
         base_resolution=96,
         polygon_budget=24,
         complexity_score=float(pre.complexity_score),
     )
 
-    result = run_phase7_headless(
+    result = run_phase_headless(
         target_image=pre.target_rgb,
         segmentation_map=pre.segmentation_map,
         plan=plan,

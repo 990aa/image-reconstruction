@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 from skimage.metrics import structural_similarity
 
-from src.live_refiner import build_phase7_plan, run_phase7_headless
+from src.live_refiner import build_phase_plan, run_phase_headless
 from src.preprocessing import preprocess_target_array
 
 
@@ -100,13 +100,13 @@ def main() -> int:
             random_seed=seed,
             base_resolution=resolution,
         )
-        plan = build_phase7_plan(
+        plan = build_phase_plan(
             base_resolution=resolution,
             polygon_budget=polygons,
             complexity_score=float(preprocessed.complexity_score),
         )
 
-        result = run_phase7_headless(
+        result = run_phase_headless(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,
             plan=plan,

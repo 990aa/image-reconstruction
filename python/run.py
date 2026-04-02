@@ -12,9 +12,9 @@ from PIL import Image
 from skimage.metrics import structural_similarity
 
 from src.live_refiner import (
-    build_phase7_plan,
-    run_phase7_headless,
-    run_phase7_live_display,
+    build_phase_plan,
+    run_phase_headless,
+    run_phase_live_display,
 )
 from src.mse import mean_squared_error, perceptual_mse_lab
 from src.preprocessing import preprocess_target_array
@@ -339,7 +339,7 @@ def main() -> int:
         if args.polygons is not None
         else 1500
     )
-    plan = build_phase7_plan(
+    plan = build_phase_plan(
         base_resolution=args.resolution,
         polygon_budget=polygon_budget,
         complexity_score=float(preprocessed.complexity_score),
@@ -399,7 +399,7 @@ def main() -> int:
         )
 
     if args.no_display:
-        result = run_phase7_headless(
+        result = run_phase_headless(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,
             plan=plan,
@@ -412,7 +412,7 @@ def main() -> int:
     else:
         print("Launching sequential live visualization...")
         print("Controls: P/E/R/Q, 1/2/3, V, G, D, +/-, X")
-        result = run_phase7_live_display(
+        result = run_phase_live_display(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,
             plan=plan,

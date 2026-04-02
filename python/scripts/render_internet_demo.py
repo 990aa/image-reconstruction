@@ -10,7 +10,7 @@ from pathlib import Path
 from PIL import Image, ImageSequence
 
 from run import _accuracy_metrics, _prepare_image_square
-from src.live_refiner import build_phase7_plan, record_phase7_demo_gif
+from src.live_refiner import build_phase_plan, record_phase_demo_gif
 from src.preprocessing import preprocess_target_array
 
 
@@ -100,14 +100,14 @@ def main() -> int:
             random_seed=int(args.seed),
             base_resolution=int(args.resolution),
         )
-        plan = build_phase7_plan(
+        plan = build_phase_plan(
             base_resolution=int(args.resolution),
             polygon_budget=int(args.polygons),
             complexity_score=float(preprocessed.complexity_score),
         )
 
         gif_path = output_dir / f"{image_path.stem}_live_demo.gif"
-        result, metadata = record_phase7_demo_gif(
+        result, metadata = record_phase_demo_gif(
             target_image=preprocessed.target_rgb,
             segmentation_map=preprocessed.segmentation_map,
             plan=plan,
