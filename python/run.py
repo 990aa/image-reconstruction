@@ -269,7 +269,9 @@ def print_analysis(
     for stage in plan.stages:
         shapes = ", ".join(
             [
-                {0: "triangle", 1: "quad", 2: "ellipse", 4: "stroke"}.get(shape, str(shape))
+                {0: "triangle", 1: "quad", 2: "ellipse", 4: "stroke"}.get(
+                    shape, str(shape)
+                )
                 for shape in stage.allowed_shapes
             ]
         )
@@ -334,11 +336,7 @@ def main() -> int:
         base_resolution=args.resolution,
     )
 
-    polygon_budget = (
-        int(args.polygons)
-        if args.polygons is not None
-        else 1500
-    )
+    polygon_budget = int(args.polygons) if args.polygons is not None else 1500
     plan = build_phase_plan(
         base_resolution=args.resolution,
         polygon_budget=polygon_budget,
@@ -386,7 +384,10 @@ def main() -> int:
         payload: dict[str, object] = {
             "stage": stage_name,
             "image_path": str(img_path.as_posix()),
-            **{k: (float(v) if isinstance(v, (int, float)) else v) for k, v in metrics.items()},
+            **{
+                k: (float(v) if isinstance(v, (int, float)) else v)
+                for k, v in metrics.items()
+            },
             **acc,
         }
 

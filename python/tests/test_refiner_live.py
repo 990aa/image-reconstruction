@@ -23,7 +23,11 @@ def test_plan_and_controls() -> None:
         complexity_score=0.5,
     )
     assert plan.polygon_budget == 220
-    assert [stage.name for stage in plan.stages] == ["foundation", "structure", "detail"]
+    assert [stage.name for stage in plan.stages] == [
+        "foundation",
+        "structure",
+        "detail",
+    ]
     assert sum(stage.shapes_to_add for stage in plan.stages) == 220
 
     controls = phaseControlState()
@@ -36,52 +40,70 @@ def test_plan_and_controls() -> None:
     def do_quit() -> None:
         quit_now["value"] = True
 
-    assert handle_phase_control_key(
-        "p",
-        controls=controls,
-        screenshot_callback=screenshot,
-        quit_callback=do_quit,
-    ) == "pause"
+    assert (
+        handle_phase_control_key(
+            "p",
+            controls=controls,
+            screenshot_callback=screenshot,
+            quit_callback=do_quit,
+        )
+        == "pause"
+    )
     assert controls.paused
 
-    assert handle_phase_control_key(
-        "r",
-        controls=controls,
-        screenshot_callback=screenshot,
-        quit_callback=do_quit,
-    ) == "screenshot"
+    assert (
+        handle_phase_control_key(
+            "r",
+            controls=controls,
+            screenshot_callback=screenshot,
+            quit_callback=do_quit,
+        )
+        == "screenshot"
+    )
     assert shot["value"]
 
-    assert handle_phase_control_key(
-        "v",
-        controls=controls,
-        screenshot_callback=screenshot,
-        quit_callback=do_quit,
-    ) == "view-cycle"
+    assert (
+        handle_phase_control_key(
+            "v",
+            controls=controls,
+            screenshot_callback=screenshot,
+            quit_callback=do_quit,
+        )
+        == "view-cycle"
+    )
     assert controls.view_mode_index == 1
 
-    assert handle_phase_control_key(
-        "e",
-        controls=controls,
-        screenshot_callback=screenshot,
-        quit_callback=do_quit,
-    ) == "residual-mode"
+    assert (
+        handle_phase_control_key(
+            "e",
+            controls=controls,
+            screenshot_callback=screenshot,
+            quit_callback=do_quit,
+        )
+        == "residual-mode"
+    )
     assert controls.residual_mode_index == 1
 
-    assert handle_phase_control_key(
-        "g",
-        controls=controls,
-        screenshot_callback=screenshot,
-        quit_callback=do_quit,
-    ) == "force-growth"
+    assert (
+        handle_phase_control_key(
+            "g",
+            controls=controls,
+            screenshot_callback=screenshot,
+            quit_callback=do_quit,
+        )
+        == "force-growth"
+    )
     assert controls.force_growth_requests == 1
 
-    assert handle_phase_control_key(
-        "q",
-        controls=controls,
-        screenshot_callback=screenshot,
-        quit_callback=do_quit,
-    ) == "quit"
+    assert (
+        handle_phase_control_key(
+            "q",
+            controls=controls,
+            screenshot_callback=screenshot,
+            quit_callback=do_quit,
+        )
+        == "quit"
+    )
     assert controls.quit_requested
     assert quit_now["value"]
 

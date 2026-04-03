@@ -128,7 +128,9 @@ def main() -> int:
                 f"Visualization update stream failed for {target_name}: "
                 f"updates={metadata['update_events']} polygons={result.polygon_count}"
             )
-        if float(metadata["final_recorded_loss"]) >= float(metadata["initial_recorded_loss"]):
+        if float(metadata["final_recorded_loss"]) >= float(
+            metadata["initial_recorded_loss"]
+        ):
             raise RuntimeError(
                 f"Visualization did not show loss reduction for {target_name}: "
                 f"{metadata['initial_recorded_loss']} -> {metadata['final_recorded_loss']}"

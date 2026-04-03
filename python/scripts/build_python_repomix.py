@@ -33,12 +33,18 @@ def _resolve_npx() -> str:
     candidates = [
         shutil.which("npx.cmd"),
         shutil.which("npx"),
-        str(Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "nodejs" / "npx.cmd"),
+        str(
+            Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+            / "nodejs"
+            / "npx.cmd"
+        ),
     ]
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             return str(candidate)
-    raise FileNotFoundError("Could not locate npx.cmd. Install Node.js and ensure npx.cmd is available.")
+    raise FileNotFoundError(
+        "Could not locate npx.cmd. Install Node.js and ensure npx.cmd is available."
+    )
 
 
 def _is_excluded_dir(path: Path) -> bool:
@@ -94,7 +100,9 @@ def _ignore_patterns() -> str:
     return ",".join(patterns)
 
 
-def _run_repomix(*, python_root: Path, manifest_files: list[str], output_path: Path) -> None:
+def _run_repomix(
+    *, python_root: Path, manifest_files: list[str], output_path: Path
+) -> None:
     if not manifest_files:
         raise RuntimeError("No files matched the repomix manifest.")
 
@@ -145,7 +153,9 @@ def main() -> int:
     python_root = _project_python_root()
     output_path = python_root / OUTPUT_NAME
     manifest_files = _collect_manifest_files(python_root)
-    _run_repomix(python_root=python_root, manifest_files=manifest_files, output_path=output_path)
+    _run_repomix(
+        python_root=python_root, manifest_files=manifest_files, output_path=output_path
+    )
     xml_paths = _extract_xml_paths(output_path)
     _verify_output(manifest_files=manifest_files, xml_paths=xml_paths)
 

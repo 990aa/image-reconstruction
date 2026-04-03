@@ -173,7 +173,9 @@ def _resize_rgb(image: np.ndarray, *, width: int, height: int) -> np.ndarray:
     uint8 = np.clip(np.round(image * 255.0), 0, 255).astype(np.uint8)
     pil = Image.fromarray(uint8, mode="RGB")
     resized = pil.resize((width, height), Image.Resampling.LANCZOS)
-    return (np.asarray(resized, dtype=np.float32) / 255.0).astype(np.float32, copy=False)
+    return (np.asarray(resized, dtype=np.float32) / 255.0).astype(
+        np.float32, copy=False
+    )
 
 
 def _scale_polygons_to_resolution(
@@ -469,7 +471,9 @@ def execute_phase_schedule(
                 new_resolution=stage.resolution,
             )
 
-        stage_target = _resize_rgb(target, width=stage.resolution, height=stage.resolution)
+        stage_target = _resize_rgb(
+            target, width=stage.resolution, height=stage.resolution
+        )
         rasterizer = SoftRasterizer(height=stage.resolution, width=stage.resolution)
         optimizer = SequentialHillClimber(
             target_image=stage_target,
@@ -481,7 +485,9 @@ def execute_phase_schedule(
 
         stage_markers.append((stage.name, len(loss_history)))
         resolution_markers.append(len(loss_history))
-        _emit_update(optimizer.current_canvas, stage.resolution, stage.name, "stage-start")
+        _emit_update(
+            optimizer.current_canvas, stage.resolution, stage.name, "stage-start"
+        )
 
         no_improvement_count = 0
         for local_idx in range(stage.shapes_to_add):
@@ -575,7 +581,11 @@ def execute_phase_schedule(
         final_loss = _rgb_mse(final_canvas, target)
 
     running = False
-    if polygons.count > 0 and previous_resolution is not None and previous_resolution != base_resolution:
+    if (
+        polygons.count > 0
+        and previous_resolution is not None
+        and previous_resolution != base_resolution
+    ):
         final_polygons = _scale_polygons_to_resolution(
             polygons,
             old_resolution=previous_resolution,
@@ -697,7 +707,9 @@ def record_phase_demo_gif(
         loss_arr = np.asarray(losses, dtype=np.float64)
         if first_loss is None:
             first_loss = (
-                float(loss_arr[-1]) if loss_arr.size else _rgb_mse(display_canvas, target)
+                float(loss_arr[-1])
+                if loss_arr.size
+                else _rgb_mse(display_canvas, target)
             )
         last_loss = (
             float(loss_arr[-1]) if loss_arr.size else _rgb_mse(display_canvas, target)
@@ -800,8 +812,12 @@ def record_phase_demo_gif(
         "update_events": int(update_events),
         "accepted_polygons": int(result.polygon_count),
         "iterations": int(result.iterations),
-        "initial_recorded_loss": float(first_loss if first_loss is not None else result.final_loss),
-        "final_recorded_loss": float(last_loss if last_loss is not None else result.final_loss),
+        "initial_recorded_loss": float(
+            first_loss if first_loss is not None else result.final_loss
+        ),
+        "final_recorded_loss": float(
+            last_loss if last_loss is not None else result.final_loss
+        ),
         "frame_stride": int(max(frame_stride, 1)),
         "frame_duration_ms": int(max(frame_duration_ms, 20)),
     }

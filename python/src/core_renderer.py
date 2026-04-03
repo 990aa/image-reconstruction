@@ -264,9 +264,9 @@ class CoreRenderer:
                 + 1e-8
             )
         else:
-            t = (
-                ((self.grid_x - x0) * dx) + ((self.grid_y - y0) * dy)
-            ) / float(seg_len_sq)
+            t = (((self.grid_x - x0) * dx) + ((self.grid_y - y0) * dy)) / float(
+                seg_len_sq
+            )
             t = np.clip(t, 0.0, 1.0)
             proj_x = x0 + t * dx
             proj_y = y0 + t * dy
@@ -280,7 +280,9 @@ class CoreRenderer:
         logits = (half_width - dist) / max(float(softness), 1e-6)
         return self._sigmoid(logits)
 
-    def single_coverage(self, polygons: LivePolygonBatch, index: int, softness: float) -> np.ndarray:
+    def single_coverage(
+        self, polygons: LivePolygonBatch, index: int, softness: float
+    ) -> np.ndarray:
         idx = int(index)
         if idx < 0 or idx >= polygons.count:
             raise IndexError("polygon index out of bounds")
@@ -329,7 +331,9 @@ class CoreRenderer:
             softness=softness,
         )
 
-    def coverage_batch(self, polygons: LivePolygonBatch, softness: float, chunk_size: int = 50) -> np.ndarray:
+    def coverage_batch(
+        self, polygons: LivePolygonBatch, softness: float, chunk_size: int = 50
+    ) -> np.ndarray:
         n = polygons.count
         out = np.zeros((n, self.height, self.width), dtype=np.float32)
         if n == 0:
@@ -410,7 +414,9 @@ class CoreRenderer:
         step = max(1, int(chunk_size))
         for start in range(0, n, step):
             end = min(start + step, n)
-            cov_chunk = np.zeros((end - start, self.height, self.width), dtype=np.float32)
+            cov_chunk = np.zeros(
+                (end - start, self.height, self.width), dtype=np.float32
+            )
             for local in range(end - start):
                 idx = start + local
                 cov_chunk[local] = self.single_coverage(polygons, idx, softness)
@@ -432,9 +438,7 @@ class CoreRenderer:
                     grad_alphas[idx] = float(
                         scale
                         * np.sum(
-                            cov[:, :, None]
-                            * (color - canvas_before)
-                            * residual,
+                            cov[:, :, None] * (color - canvas_before) * residual,
                             dtype=np.float32,
                         )
                     )

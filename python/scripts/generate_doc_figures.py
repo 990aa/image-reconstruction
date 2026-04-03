@@ -47,13 +47,61 @@ def pipeline_overview(path: Path) -> None:
     ax.axis("off")
 
     _box(ax, 0.04, 0.60, 0.18, 0.18, "Target Image\nCrop + Resize", color="#d8f3dc")
-    _box(ax, 0.29, 0.60, 0.18, 0.18, "Residual Guide Map\n+ Top-K Regions", color="#b7e4c7")
-    _box(ax, 0.54, 0.60, 0.18, 0.18, "Candidate Proposal\nGeometry + Alpha", color="#95d5b2")
-    _box(ax, 0.79, 0.60, 0.17, 0.18, "Analytic Color Solve\nCandidate Ranking", color="#74c69d")
+    _box(
+        ax,
+        0.29,
+        0.60,
+        0.18,
+        0.18,
+        "Residual Guide Map\n+ Top-K Regions",
+        color="#b7e4c7",
+    )
+    _box(
+        ax,
+        0.54,
+        0.60,
+        0.18,
+        0.18,
+        "Candidate Proposal\nGeometry + Alpha",
+        color="#95d5b2",
+    )
+    _box(
+        ax,
+        0.79,
+        0.60,
+        0.17,
+        0.18,
+        "Analytic Color Solve\nCandidate Ranking",
+        color="#74c69d",
+    )
 
-    _box(ax, 0.18, 0.18, 0.20, 0.20, "Mutation Hill Climb\nPosition / Size / Rotation", color="#ffd6a5")
-    _box(ax, 0.46, 0.18, 0.20, 0.20, "Commit One Primitive\nUpdate Canvas", color="#ffcad4")
-    _box(ax, 0.74, 0.18, 0.18, 0.20, "Live Dashboard\nTarget / Recon / Error / Loss", color="#cddafd")
+    _box(
+        ax,
+        0.18,
+        0.18,
+        0.20,
+        0.20,
+        "Mutation Hill Climb\nPosition / Size / Rotation",
+        color="#ffd6a5",
+    )
+    _box(
+        ax,
+        0.46,
+        0.18,
+        0.20,
+        0.20,
+        "Commit One Primitive\nUpdate Canvas",
+        color="#ffcad4",
+    )
+    _box(
+        ax,
+        0.74,
+        0.18,
+        0.18,
+        0.20,
+        "Live Dashboard\nTarget / Recon / Error / Loss",
+        color="#cddafd",
+    )
 
     _arrow(ax, (0.22, 0.69), (0.29, 0.69))
     _arrow(ax, (0.47, 0.69), (0.54, 0.69))
@@ -63,7 +111,9 @@ def pipeline_overview(path: Path) -> None:
     _arrow(ax, (0.38, 0.28), (0.46, 0.28))
     _arrow(ax, (0.66, 0.28), (0.74, 0.28))
     _arrow(ax, (0.56, 0.18), (0.38, 0.10))
-    ax.text(0.22, 0.08, "Repeat until time budget expires", fontsize=11, color="#16324f")
+    ax.text(
+        0.22, 0.08, "Repeat until time budget expires", fontsize=11, color="#16324f"
+    )
 
     fig.suptitle("Sequential Primitive Reconstruction Pipeline", fontsize=16)
     fig.tight_layout()
@@ -119,9 +169,33 @@ def dashboard_layout(path: Path) -> None:
     ax.axis("off")
 
     _box(ax, 0.05, 0.54, 0.40, 0.34, "Target View\nstatic reference", color="#edf6f9")
-    _box(ax, 0.55, 0.54, 0.40, 0.34, "Reconstruction View\nupdated every accepted primitive", color="#e9ecef")
-    _box(ax, 0.05, 0.10, 0.40, 0.34, "Absolute Error Map\nbright = unresolved regions", color="#faedcd")
-    _box(ax, 0.55, 0.10, 0.40, 0.34, "Log Loss Curve\nstage markers + accepted-shape history", color="#f8edeb")
+    _box(
+        ax,
+        0.55,
+        0.54,
+        0.40,
+        0.34,
+        "Reconstruction View\nupdated every accepted primitive",
+        color="#e9ecef",
+    )
+    _box(
+        ax,
+        0.05,
+        0.10,
+        0.40,
+        0.34,
+        "Absolute Error Map\nbright = unresolved regions",
+        color="#faedcd",
+    )
+    _box(
+        ax,
+        0.55,
+        0.10,
+        0.40,
+        0.34,
+        "Log Loss Curve\nstage markers + accepted-shape history",
+        color="#f8edeb",
+    )
 
     fig.suptitle("Live Matplotlib Dashboard Layout", fontsize=16)
     fig.tight_layout()

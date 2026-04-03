@@ -63,9 +63,13 @@ class ShapeCandidate:
             shape_params=np.array(self.shape_params, copy=True),
             color=np.array(self.color, copy=True),
             mse=float(self.mse),
-            coverage=None if self.coverage is None else np.array(self.coverage, copy=True),
+            coverage=None
+            if self.coverage is None
+            else np.array(self.coverage, copy=True),
             canvas=None if self.canvas is None else np.array(self.canvas, copy=True),
-            residual=None if self.residual is None else np.array(self.residual, copy=True),
+            residual=None
+            if self.residual is None
+            else np.array(self.residual, copy=True),
         )
 
 
@@ -314,23 +318,11 @@ class SequentialHillClimber:
             return allowed[0]
 
         # Only allow angular primitives on strict, high-variance edges.
-        if (
-            SHAPE_THIN_STROKE in allowed
-            and structure >= 0.62
-            and linearity >= 0.68
-        ):
+        if SHAPE_THIN_STROKE in allowed and structure >= 0.62 and linearity >= 0.68:
             return SHAPE_THIN_STROKE
-        if (
-            SHAPE_TRIANGLE in allowed
-            and structure >= 0.42
-            and linearity >= 0.45
-        ):
+        if SHAPE_TRIANGLE in allowed and structure >= 0.42 and linearity >= 0.45:
             return SHAPE_TRIANGLE
-        if (
-            SHAPE_QUAD in allowed
-            and structure >= 0.35
-            and rng.random() < 0.15
-        ):
+        if SHAPE_QUAD in allowed and structure >= 0.35 and rng.random() < 0.15:
             return SHAPE_QUAD
         if SHAPE_ELLIPSE in allowed:
             return SHAPE_ELLIPSE
@@ -384,7 +376,9 @@ class SequentialHillClimber:
         )
 
         jitter = max(0.5, float(stage.region_window) * 0.45)
-        x = float(np.clip(center_x + rng.uniform(-jitter, jitter), 0.0, self.width - 1.0))
+        x = float(
+            np.clip(center_x + rng.uniform(-jitter, jitter), 0.0, self.width - 1.0)
+        )
         y = float(
             np.clip(center_y + rng.uniform(-jitter, jitter), 0.0, self.height - 1.0)
         )
@@ -393,7 +387,8 @@ class SequentialHillClimber:
         if shape_type == SHAPE_THIN_STROKE:
             length = float(
                 np.clip(
-                    rng.uniform(stage.size_min, stage.size_max) * (1.1 + 1.2 * structure),
+                    rng.uniform(stage.size_min, stage.size_max)
+                    * (1.1 + 1.2 * structure),
                     stage.size_min,
                     stage.size_max * 1.8,
                 )
@@ -452,7 +447,8 @@ class SequentialHillClimber:
             if op == 0:
                 mutated.center_x = float(
                     np.clip(
-                        mutated.center_x + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
+                        mutated.center_x
+                        + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
                         0.0,
                         self.width - 1.0,
                     )
@@ -460,24 +456,35 @@ class SequentialHillClimber:
             elif op == 1:
                 mutated.center_y = float(
                     np.clip(
-                        mutated.center_y + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
+                        mutated.center_y
+                        + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
                         0.0,
                         self.height - 1.0,
                     )
                 )
             elif op == 2:
                 scale = 1.0 + rng.choice([-1.0, 1.0]) * stage.mutation_size_ratio
-                mutated.size_x = float(np.clip(mutated.size_x * scale, stage.size_min, max_size))
+                mutated.size_x = float(
+                    np.clip(mutated.size_x * scale, stage.size_min, max_size)
+                )
             elif op == 3:
                 scale = 1.0 + rng.choice([-1.0, 1.0]) * stage.mutation_size_ratio
                 mutated.size_y = float(
-                    np.clip(mutated.size_y * scale, max(stage.size_min * 0.25, 0.8), max_size)
+                    np.clip(
+                        mutated.size_y * scale,
+                        max(stage.size_min * 0.25, 0.8),
+                        max_size,
+                    )
                 )
             else:
-                mutated.rotation = float(mutated.rotation + rng.choice([-1.0, 1.0]) * rot_step)
+                mutated.rotation = float(
+                    mutated.rotation + rng.choice([-1.0, 1.0]) * rot_step
+                )
 
         if mutated.shape_type == SHAPE_THIN_STROKE:
-            mutated.size_x = float(np.clip(mutated.size_x, stage.size_min * 0.5, max_size))
+            mutated.size_x = float(
+                np.clip(mutated.size_x, stage.size_min * 0.5, max_size)
+            )
             mutated.size_y = float(
                 np.clip(mutated.size_y, 0.5, max(0.5, stage.size_max * 0.25))
             )
@@ -566,7 +573,10 @@ class SequentialHillClimber:
             axis=0,
         )
         self.polygons.colors = np.concatenate(
-            [self.polygons.colors, candidate.color.reshape(1, 3).astype(np.float32, copy=False)],
+            [
+                self.polygons.colors,
+                candidate.color.reshape(1, 3).astype(np.float32, copy=False),
+            ],
             axis=0,
         )
         self.polygons.alphas = np.concatenate(
@@ -574,7 +584,10 @@ class SequentialHillClimber:
             axis=0,
         )
         self.polygons.shape_types = np.concatenate(
-            [self.polygons.shape_types, np.array([candidate.shape_type], dtype=np.int32)],
+            [
+                self.polygons.shape_types,
+                np.array([candidate.shape_type], dtype=np.int32),
+            ],
             axis=0,
         )
         self.polygons.shape_params = np.concatenate(
