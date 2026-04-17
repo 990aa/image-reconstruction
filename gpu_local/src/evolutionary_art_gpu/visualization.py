@@ -51,7 +51,12 @@ def plot_3d_exploded_view(
                 t = 2.0 * math.pi * p / num_pts
                 verts.append((float(sx * math.cos(t)), float(sy * math.sin(t))))
         elif shape_type == SHAPE_QUAD:
-            verts = [(float(sx), float(sy)), (-float(sx), float(sy)), (-float(sx), -float(sy)), (float(sx), -float(sy))]
+            verts = [
+                (float(sx), float(sy)),
+                (-float(sx), float(sy)),
+                (-float(sx), -float(sy)),
+                (float(sx), -float(sy)),
+            ]
         elif shape_type == SHAPE_TRIANGLE:
             verts = [
                 (float(sx), 0.0),
@@ -122,7 +127,9 @@ def plot_3d_exploded_view(
         scene=dict(
             xaxis=dict(range=[0, width], showgrid=False, showticklabels=False),
             yaxis=dict(range=[height, 0], showgrid=False, showticklabels=False),
-            zaxis=dict(range=[0, max(batch.count, 1)], showgrid=False, showticklabels=False),
+            zaxis=dict(
+                range=[0, max(batch.count, 1)], showgrid=False, showticklabels=False
+            ),
             aspectmode="manual",
             aspectratio=dict(x=1, y=(height / max(width, 1)), z=0.8),
         ),

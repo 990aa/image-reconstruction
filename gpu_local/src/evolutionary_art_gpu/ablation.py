@@ -12,7 +12,12 @@ import torch
 import torch.optim as optim
 from skimage.metrics import structural_similarity
 
-from evolutionary_art_gpu.constants import SHAPE_ELLIPSE, SHAPE_QUAD, SHAPE_THIN_STROKE, SHAPE_TRIANGLE
+from evolutionary_art_gpu.constants import (
+    SHAPE_ELLIPSE,
+    SHAPE_QUAD,
+    SHAPE_THIN_STROKE,
+    SHAPE_TRIANGLE,
+)
 from evolutionary_art_gpu.models import SequentialStageConfig
 from evolutionary_art_gpu.optimizer import GPUSequentialHillClimber
 from evolutionary_art_gpu.pipeline import (
@@ -44,7 +49,9 @@ class ConfigurableGPUOptimizer(GPUSequentialHillClimber):
         amplified = np.clip(guide_map**2, 0.0, None)
         return super().sample_error_centers(amplified, count, top_k, window, rng)
 
-    def random_candidate(self, stage, center_x, center_y, structure_map, angle_map, linearity_map, rng):
+    def random_candidate(
+        self, stage, center_x, center_y, structure_map, angle_map, linearity_map, rng
+    ):
         candidate = super().random_candidate(
             stage,
             center_x,
@@ -75,8 +82,12 @@ class ConfigurableGPUOptimizer(GPUSequentialHillClimber):
             mutated.size_y = max(mutated.size_y, mutated.size_x * 0.2)
 
         if not self.cfg.get("use_analytic_color", True):
-            mutated.color = np.clip(mutated.color + rng.uniform(-0.15, 0.15, 3), 0.0, 1.0)
-            mutated.alpha = float(np.clip(mutated.alpha + rng.uniform(-0.1, 0.1), 0.1, 1.0))
+            mutated.color = np.clip(
+                mutated.color + rng.uniform(-0.15, 0.15, 3), 0.0, 1.0
+            )
+            mutated.alpha = float(
+                np.clip(mutated.alpha + rng.uniform(-0.1, 0.1), 0.1, 1.0)
+            )
         return mutated
 
     def evaluate_candidate(self, candidate, softness):
@@ -88,7 +99,9 @@ class ConfigurableGPUOptimizer(GPUSequentialHillClimber):
         weight3 = weight.unsqueeze(2)
 
         color_tensor = torch.from_numpy(candidate.color).to(self.device).view(1, 1, 3)
-        canvas = self.current_canvas_tensor + weight3 * (color_tensor - self.current_canvas_tensor)
+        canvas = self.current_canvas_tensor + weight3 * (
+            color_tensor - self.current_canvas_tensor
+        )
         canvas = torch.clamp(canvas, 0.0, 1.0)
 
         residual = canvas - self.target_tensor
@@ -144,7 +157,9 @@ def _run_gradient_baseline(target, bg, polygons, minutes):
 
     resolution = int(target.shape[0])
     n_shapes = min(50, int(polygons))
-    centers = (torch.rand((n_shapes, 2), device=device) * resolution).requires_grad_(True)
+    centers = (torch.rand((n_shapes, 2), device=device) * resolution).requires_grad_(
+        True
+    )
     sizes = (torch.rand((n_shapes, 2), device=device) * 10.0 + 2.0).requires_grad_(True)
     colors = torch.rand((n_shapes, 3), device=device).requires_grad_(True)
     alphas = torch.rand((n_shapes, 1), device=device).requires_grad_(True)
@@ -186,7 +201,9 @@ def _run_gradient_baseline(target, bg, polygons, minutes):
     final_canvas = canvas.detach().cpu().numpy()
     mse = float(np.mean((target - final_canvas) ** 2, dtype=np.float32))
     psnr = 20 * math.log10(1.0 / math.sqrt(max(mse, 1e-10)))
-    ssim = float(structural_similarity(target, final_canvas, data_range=1.0, channel_axis=2))
+    ssim = float(
+        structural_similarity(target, final_canvas, data_range=1.0, channel_axis=2)
+    )
     return final_canvas, psnr, ssim, n_shapes
 
 
@@ -198,7 +215,9 @@ def run_ablation_suite(
     resolution: int = 100,
     seed: int = 42,
 ) -> tuple[pd.DataFrame, list[tuple[str, np.ndarray]]]:
-    target = _resize_float_image(np.asarray(image_rgb, dtype=np.float32), (resolution, resolution))
+    target = _resize_float_image(
+        np.asarray(image_rgb, dtype=np.float32), (resolution, resolution)
+    )
     prep = preprocess_target_array(target, resolution)
 
     experiments: dict[str, dict[str, object]] = {
@@ -276,7 +295,9 @@ def run_ablation_suite(
                     ),
                 )
             else:
-                stages = build_phase_plan(resolution, polygons, prep.complexity_score).stages
+                stages = build_phase_plan(
+                    resolution, polygons, prep.complexity_score
+                ).stages
 
             optimizer = ConfigurableGPUOptimizer(
                 target,
@@ -290,7 +311,12 @@ def run_ablation_suite(
 
             gray = np.mean(target, axis=2)
             gy, gx = np.gradient(gray)
-            structure_map = np.clip(np.hypot(gx, gy) / max(float(np.percentile(np.hypot(gx, gy), 99.0)), 1e-6), 0.0, 1.0)
+            structure_map = np.clip(
+                np.hypot(gx, gy)
+                / max(float(np.percentile(np.hypot(gx, gy), 99.0)), 1e-6),
+                0.0,
+                1.0,
+            )
             angle_map = np.arctan2(gy, gx)
             linearity_map = np.ones_like(angle_map, dtype=np.float32)
 
@@ -298,7 +324,10 @@ def run_ablation_suite(
                 for _ in range(int(stage.shapes_to_add)):
                     if (time.perf_counter() - start) > (minutes * 60.0):
                         break
-                    guide = np.mean(np.abs(optimizer.target_np - optimizer.current_canvas_np), axis=2)
+                    guide = np.mean(
+                        np.abs(optimizer.target_np - optimizer.current_canvas_np),
+                        axis=2,
+                    )
                     candidate = optimizer.search_next_shape(
                         stage,
                         guide,
@@ -313,7 +342,9 @@ def run_ablation_suite(
             canvas = optimizer.current_canvas_np
             mse = float(np.mean((target - canvas) ** 2, dtype=np.float32))
             psnr = 20 * math.log10(1.0 / math.sqrt(max(mse, 1e-10)))
-            ssim = float(structural_similarity(target, canvas, data_range=1.0, channel_axis=2))
+            ssim = float(
+                structural_similarity(target, canvas, data_range=1.0, channel_axis=2)
+            )
             shapes = int(optimizer.polygons.count)
 
         results.append(
@@ -324,7 +355,9 @@ def run_ablation_suite(
                 "Shapes Used": int(shapes),
             }
         )
-        canvases.append((name[2:], np.clip(canvas, 0.0, 1.0).astype(np.float32, copy=False)))
+        canvases.append(
+            (name[2:], np.clip(canvas, 0.0, 1.0).astype(np.float32, copy=False))
+        )
 
     return pd.DataFrame(results), canvases
 

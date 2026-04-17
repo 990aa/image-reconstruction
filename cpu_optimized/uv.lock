@@ -119,7 +119,7 @@ wheels = [
 ]
 
 [[package]]
-name = "evolutionary-art-python"
+name = "evolutionary-art-cpu-optimized"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

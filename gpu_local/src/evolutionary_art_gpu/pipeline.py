@@ -27,7 +27,9 @@ from evolutionary_art_gpu.renderer import GPUCoreRenderer
 
 
 ProgressCallback = Callable[[str, int, int, np.ndarray, np.ndarray, list[float]], None]
-StageCheckpointCallback = Callable[[str, np.ndarray, dict[str, float | int | str]], None]
+StageCheckpointCallback = Callable[
+    [str, np.ndarray, dict[str, float | int | str]], None
+]
 
 
 def make_empty_live_batch() -> LivePolygonBatch:
@@ -132,7 +134,9 @@ def _resize_float_image(image: np.ndarray, size: tuple[int, int]) -> np.ndarray:
         mode="RGB",
     )
     resized = pil.resize((target_w, target_h), Image.Resampling.LANCZOS)
-    return (np.asarray(resized, dtype=np.float32) / 255.0).astype(np.float32, copy=False)
+    return (np.asarray(resized, dtype=np.float32) / 255.0).astype(
+        np.float32, copy=False
+    )
 
 
 def prepare_square_image(
@@ -170,7 +174,9 @@ def prepare_square_image(
     return arr.astype(np.float32, copy=False), (orig_w, orig_h)
 
 
-def preprocess_target_array(target_rgb: np.ndarray, base_resolution: int) -> PreprocessedTarget:
+def preprocess_target_array(
+    target_rgb: np.ndarray, base_resolution: int
+) -> PreprocessedTarget:
     target = _resize_float_image(target_rgb, (base_resolution, base_resolution))
     gray = np.mean(target, axis=2)
     gx = sobel_h(gray)
@@ -204,7 +210,9 @@ def preprocess_target_array(target_rgb: np.ndarray, base_resolution: int) -> Pre
     )
 
 
-def _scale_polygons(polygons: LivePolygonBatch, old_res: int, new_res: int) -> LivePolygonBatch:
+def _scale_polygons(
+    polygons: LivePolygonBatch, old_res: int, new_res: int
+) -> LivePolygonBatch:
     if polygons.count == 0:
         return make_empty_live_batch()
 
@@ -220,14 +228,19 @@ def _scale_polygons(polygons: LivePolygonBatch, old_res: int, new_res: int) -> L
     return batch
 
 
-def _compute_stage_maps(stage_target: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _compute_stage_maps(
+    stage_target: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     gray = np.mean(stage_target, axis=2)
     gy, gx = np.gradient(gray)
     mag = np.hypot(gx, gy)
     structure_map = np.clip(mag / max(float(np.percentile(mag, 99.0)), 1e-6), 0.0, 1.0)
     angle_map = np.arctan2(gy, gx)
     linearity_map = np.clip(
-        np.sqrt(uniform_filter(np.cos(angle_map), 7) ** 2 + uniform_filter(np.sin(angle_map), 7) ** 2),
+        np.sqrt(
+            uniform_filter(np.cos(angle_map), 7) ** 2
+            + uniform_filter(np.sin(angle_map), 7) ** 2
+        ),
         0.0,
         1.0,
     )
@@ -277,7 +290,9 @@ def run_phase_local_gpu(
             if previous_resolution is None
             else _scale_polygons(batch, previous_resolution, stage.resolution)
         )
-        stage_target = _resize_float_image(prep.target_rgb, (stage.resolution, stage.resolution))
+        stage_target = _resize_float_image(
+            prep.target_rgb, (stage.resolution, stage.resolution)
+        )
         structure_map, angle_map, linearity_map = _compute_stage_maps(stage_target)
 
         optimizer = GPUSequentialHillClimber(
@@ -291,7 +306,10 @@ def run_phase_local_gpu(
         local_index = 0
 
         while True:
-            if budget_seconds > 0.0 and (time.perf_counter() - start_time) > budget_seconds:
+            if (
+                budget_seconds > 0.0
+                and (time.perf_counter() - start_time) > budget_seconds
+            ):
                 break
             if stage.name != "detail" and local_index >= stage.shapes_to_add:
                 break
@@ -302,7 +320,9 @@ def run_phase_local_gpu(
                 axis=2,
             )
             if stage.high_frequency_only:
-                guide_map = np.clip(guide_map - gaussian_filter(guide_map, 2.5), 0.0, None)
+                guide_map = np.clip(
+                    guide_map - gaussian_filter(guide_map, 2.5), 0.0, None
+                )
                 guide_map = guide_map + 0.40 * np.mean(
                     np.abs(optimizer.target_np - optimizer.current_canvas_np),
                     axis=2,
@@ -333,14 +353,18 @@ def run_phase_local_gpu(
                     stage.name,
                     iteration,
                     int(batch.count),
-                    _resize_float_image(optimizer.current_canvas_np, (resolution, resolution)),
+                    _resize_float_image(
+                        optimizer.current_canvas_np, (resolution, resolution)
+                    ),
                     prep.target_rgb,
                     list(loss_history),
                 )
                 last_progress_time = now
 
         if optimizer is not None and stage_checkpoint_callback is not None:
-            stage_canvas = _resize_float_image(optimizer.current_canvas_np, (resolution, resolution))
+            stage_canvas = _resize_float_image(
+                optimizer.current_canvas_np, (resolution, resolution)
+            )
             stage_checkpoint_callback(
                 stage.name,
                 stage_canvas,
@@ -352,8 +376,14 @@ def run_phase_local_gpu(
             )
 
     if optimizer is None:
-        final_canvas = np.broadcast_to(background.reshape(1, 1, 3), prep.target_rgb.shape).copy()
-    elif batch.count > 0 and previous_resolution is not None and previous_resolution != resolution:
+        final_canvas = np.broadcast_to(
+            background.reshape(1, 1, 3), prep.target_rgb.shape
+        ).copy()
+    elif (
+        batch.count > 0
+        and previous_resolution is not None
+        and previous_resolution != resolution
+    ):
         final_batch = _scale_polygons(batch, previous_resolution, resolution)
         final_optimizer = GPUSequentialHillClimber(
             target_image=prep.target_rgb,
@@ -364,7 +394,9 @@ def run_phase_local_gpu(
         batch = final_optimizer.polygons.copy()
         final_canvas = final_optimizer.current_canvas_np
     else:
-        final_canvas = _resize_float_image(optimizer.current_canvas_np, (resolution, resolution))
+        final_canvas = _resize_float_image(
+            optimizer.current_canvas_np, (resolution, resolution)
+        )
 
     final_canvas = np.clip(final_canvas, 0.0, 1.0).astype(np.float32, copy=False)
 

@@ -126,7 +126,9 @@ def _render_dashboard(
     ax_curve.set_yscale("log")
     ax_curve.grid(True, alpha=0.25)
     if losses:
-        ax_curve.plot(np.maximum(np.asarray(losses, dtype=np.float64), 1e-9), color="tab:blue")
+        ax_curve.plot(
+            np.maximum(np.asarray(losses, dtype=np.float64), 1e-9), color="tab:blue"
+        )
 
     fig.suptitle(f"Stage: {stage_name} | Iter: {iteration}", fontsize=13)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
@@ -185,7 +187,10 @@ def main() -> int:
     def _stage_checkpoint(stage_name, canvas, metrics):
         payload = {
             "stage": stage_name,
-            **{k: (float(v) if isinstance(v, (int, float)) else v) for k, v in metrics.items()},
+            **{
+                k: (float(v) if isinstance(v, (int, float)) else v)
+                for k, v in metrics.items()
+            },
         }
         if args.save_stage_checkpoints:
             stage_path = output_dir / f"stage_{stage_name}.png"
@@ -230,7 +235,9 @@ def main() -> int:
         "iterations": int(result.iterations),
         "metrics": metrics,
         "final_image": str(final_png.relative_to(ROOT)).replace("\\", "/"),
-        "svg": None if svg_path is None else str(svg_path.relative_to(ROOT)).replace("\\", "/"),
+        "svg": None
+        if svg_path is None
+        else str(svg_path.relative_to(ROOT)).replace("\\", "/"),
         "stage_markers": [[name, int(idx)] for name, idx in result.stage_markers],
         "stage_checkpoints": stage_records,
     }

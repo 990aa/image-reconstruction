@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 
 import numpy as np
 import torch
@@ -55,10 +54,13 @@ class GPUSequentialHillClimber:
                 )
                 coverage = self._coverage_from_candidate(candidate, softness=1.0)
                 weight = coverage * float(np.clip(candidate.alpha, 0.0, 1.0))
-                color_tensor = torch.from_numpy(candidate.color).to(self.device).view(1, 1, 3)
-                self.current_canvas_tensor = self.current_canvas_tensor + weight.unsqueeze(
-                    2
-                ) * (color_tensor - self.current_canvas_tensor)
+                color_tensor = (
+                    torch.from_numpy(candidate.color).to(self.device).view(1, 1, 3)
+                )
+                self.current_canvas_tensor = (
+                    self.current_canvas_tensor
+                    + weight.unsqueeze(2) * (color_tensor - self.current_canvas_tensor)
+                )
 
         self.current_canvas_tensor = torch.clamp(self.current_canvas_tensor, 0.0, 1.0)
         residual = self.current_canvas_tensor - self.target_tensor
@@ -123,10 +125,7 @@ class GPUSequentialHillClimber:
         else:
             numer = torch.sum(
                 weight3
-                * (
-                    self.target_tensor
-                    - self.current_canvas_tensor * (1.0 - weight3)
-                ),
+                * (self.target_tensor - self.current_canvas_tensor * (1.0 - weight3)),
                 dim=(0, 1),
             )
             color = torch.clamp(numer / denom, 0.0, 1.0)
@@ -268,15 +267,20 @@ class GPUSequentialHillClimber:
         )
 
         jitter = max(0.5, float(stage.region_window) * 0.45)
-        x = float(np.clip(center_x + rng.uniform(-jitter, jitter), 0.0, self.width - 1.0))
-        y = float(np.clip(center_y + rng.uniform(-jitter, jitter), 0.0, self.height - 1.0))
+        x = float(
+            np.clip(center_x + rng.uniform(-jitter, jitter), 0.0, self.width - 1.0)
+        )
+        y = float(
+            np.clip(center_y + rng.uniform(-jitter, jitter), 0.0, self.height - 1.0)
+        )
         alpha = float(rng.uniform(stage.alpha_min, stage.alpha_max))
 
         params = np.zeros((6,), dtype=np.float32)
         if shape_type == SHAPE_THIN_STROKE:
             length = float(
                 np.clip(
-                    rng.uniform(stage.size_min, stage.size_max) * (1.1 + 1.2 * structure),
+                    rng.uniform(stage.size_min, stage.size_max)
+                    * (1.1 + 1.2 * structure),
                     stage.size_min,
                     stage.size_max * 1.8,
                 )
@@ -299,7 +303,9 @@ class GPUSequentialHillClimber:
             )
 
         major = float(rng.uniform(stage.size_min, stage.size_max))
-        minor = float(max(stage.size_min * 0.35, major / max(self._aspect_ratio(structure), 1.0)))
+        minor = float(
+            max(stage.size_min * 0.35, major / max(self._aspect_ratio(structure), 1.0))
+        )
         if structure >= 0.12:
             rotation = float(angle + 0.5 * np.pi + rng.uniform(-0.35, 0.35))
         else:
@@ -316,7 +322,9 @@ class GPUSequentialHillClimber:
             color=np.zeros((3,), dtype=np.float32),
         )
 
-    def mutate_candidate(self, candidate: ShapeCandidate, stage, rng: np.random.Generator) -> ShapeCandidate:
+    def mutate_candidate(
+        self, candidate: ShapeCandidate, stage, rng: np.random.Generator
+    ) -> ShapeCandidate:
         mutated = candidate.copy()
         rot_step = float(np.deg2rad(stage.mutation_rotation_deg))
         max_size = float(max(stage.size_max, stage.size_min))
@@ -326,7 +334,8 @@ class GPUSequentialHillClimber:
             if op == 0:
                 mutated.center_x = float(
                     np.clip(
-                        mutated.center_x + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
+                        mutated.center_x
+                        + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
                         0.0,
                         self.width - 1.0,
                     )
@@ -334,7 +343,8 @@ class GPUSequentialHillClimber:
             elif op == 1:
                 mutated.center_y = float(
                     np.clip(
-                        mutated.center_y + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
+                        mutated.center_y
+                        + rng.choice([-1.0, 1.0]) * stage.mutation_shift_px,
                         0.0,
                         self.height - 1.0,
                     )
@@ -358,16 +368,24 @@ class GPUSequentialHillClimber:
                     )
                 )
             else:
-                mutated.rotation = float(mutated.rotation + rng.choice([-1.0, 1.0]) * rot_step)
+                mutated.rotation = float(
+                    mutated.rotation + rng.choice([-1.0, 1.0]) * rot_step
+                )
 
         if mutated.shape_type == SHAPE_THIN_STROKE:
-            mutated.size_x = float(np.clip(mutated.size_x, stage.size_min * 0.5, max_size))
+            mutated.size_x = float(
+                np.clip(mutated.size_x, stage.size_min * 0.5, max_size)
+            )
             mutated.size_y = float(
                 np.clip(mutated.size_y, 0.5, max(0.5, stage.size_max * 0.25))
             )
             length = max(mutated.size_x * 2.0, 2.0)
-            mutated.shape_params[0] = mutated.center_x + float(np.cos(mutated.rotation) * length)
-            mutated.shape_params[1] = mutated.center_y + float(np.sin(mutated.rotation) * length)
+            mutated.shape_params[0] = mutated.center_x + float(
+                np.cos(mutated.rotation) * length
+            )
+            mutated.shape_params[1] = mutated.center_y + float(
+                np.sin(mutated.rotation) * length
+            )
             mutated.shape_params[2] = max(mutated.size_y * 2.0, 1.0)
         else:
             mutated.size_x = float(np.clip(mutated.size_x, stage.size_min, max_size))
