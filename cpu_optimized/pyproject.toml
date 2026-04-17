@@ -1,7 +1,7 @@
 [project]
-name = "evolutionary-art-python"
+name = "evolutionary-art-cpu-optimized"
 version = "0.1.0"
-description = "Reconstructs target images with transparent geometric primitives using an attention-guided evolutionary optimizer"
+description = "Optimized CPU implementation for sequential primitive image reconstruction"
 requires-python = ">=3.14"
 dependencies = [
     "matplotlib>=3.10.8",

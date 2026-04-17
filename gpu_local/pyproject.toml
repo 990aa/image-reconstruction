@@ -1,0 +1,23 @@
+[project]
+name = "evolutionary-art-gpu-local"
+version = "0.1.0"
+description = "Modular local-GPU implementation extracted from evolArt.ipynb"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "matplotlib>=3.10.0",
+    "numpy>=2.2.0",
+    "pandas>=2.2.0",
+    "pillow>=11.0.0",
+    "plotly>=6.0.0",
+    "scikit-image>=0.25.0",
+    "scikit-learn>=1.6.0",
+    "scipy>=1.15.0",
+    "seaborn>=0.13.0",
+    "torch>=2.6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
