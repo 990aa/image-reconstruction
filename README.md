@@ -1,35 +1,10 @@
 # Evolutionary Art Reconstruction
 
-This repository is now split into three clean, platform-specific modules that share the same sequential primitive reconstruction logic:
+This repository is split into three clean, platform-specific modules that share the same sequential primitive reconstruction logic:
 
 - `cpu_optimized`: optimized CPU implementation (headless + live dashboard + tests)
 - `colab`: canonical Colab notebook implementation (`evolArt.ipynb`)
 - `gpu_local`: modular local-GPU Python package extracted from the notebook
-
-## Repository Layout
-
-```text
-evolutionary-art/
-	cpu_optimized/
-		run.py
-		src/
-		tests/
-		scripts/
-		pyproject.toml
-	colab/
-		evolArt.ipynb
-	gpu_local/
-		run.py
-		src/evolutionary_art_gpu/
-		pyproject.toml
-	README.md
-```
-
-## Why This Structure
-
-- The notebook remains the latest canonical reference.
-- The CPU module keeps the optimized runtime and existing regression suite.
-- The local GPU module ports notebook logic into reusable Python files for non-Colab workflows.
 
 ## 1) CPU Optimized Module
 

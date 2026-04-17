@@ -148,6 +148,7 @@ def test_headless_refiner_adds_shapes_and_marks_stages() -> None:
 def test_cli_no_display_runs(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[1]
     run_script = project_root / "run.py"
+    checkpoint_dir = tmp_path / "checkpoints"
 
     img = np.zeros((96, 96, 3), dtype=np.float32)
     img[..., 0] = np.linspace(0.0, 1.0, 96, dtype=np.float32)[None, :]
@@ -176,6 +177,8 @@ def test_cli_no_display_runs(tmp_path: Path) -> None:
             "--fit-mode",
             "crop",
             "--no-prompt",
+            "--checkpoint-dir",
+            str(checkpoint_dir),
         ],
         cwd=project_root,
         capture_output=True,

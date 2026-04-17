@@ -3,7 +3,7 @@ name = "evolutionary-art-gpu-local"
 version = "0.1.0"
 description = "Modular local-GPU implementation extracted from evolArt.ipynb"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "matplotlib>=3.10.0",
     "numpy>=2.2.0",

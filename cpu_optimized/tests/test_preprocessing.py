@@ -5,13 +5,26 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 
 from src.preprocessing import preprocess_target_image
 
 
-def test_preprocessing_pipeline_outputs_valid_metadata() -> None:
-    project_root = Path(__file__).resolve().parents[1]
-    target_path = project_root / "targets" / "face.png"
+def _make_test_image(path: Path, size: int = 224) -> None:
+    yy, xx = np.meshgrid(
+        np.linspace(0.0, 1.0, size, dtype=np.float32),
+        np.linspace(0.0, 1.0, size, dtype=np.float32),
+        indexing="ij",
+    )
+    rgb = np.stack([xx, yy, 0.5 * np.ones_like(xx)], axis=2)
+    Image.fromarray(np.clip(rgb * 255.0, 0, 255).astype(np.uint8), mode="RGB").save(
+        path
+    )
+
+
+def test_preprocessing_pipeline_outputs_valid_metadata(tmp_path: Path) -> None:
+    target_path = tmp_path / "face.png"
+    _make_test_image(target_path)
 
     result = preprocess_target_image(target_path, random_seed=7)
 
@@ -35,10 +48,12 @@ def test_preprocessing_pipeline_outputs_valid_metadata() -> None:
     assert 50 <= result.recommended_polygons <= 500
 
 
-def test_run_cli_launches_without_error_for_valid_image() -> None:
+def test_run_cli_launches_without_error_for_valid_image(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[1]
     run_script = project_root / "run.py"
-    target_path = project_root / "targets" / "face.png"
+    target_path = tmp_path / "face.png"
+    checkpoint_dir = tmp_path / "checkpoints"
+    _make_test_image(target_path)
 
     completed = subprocess.run(
         [
@@ -50,6 +65,8 @@ def test_run_cli_launches_without_error_for_valid_image() -> None:
             "10",
             "--seed",
             "1",
+                "--checkpoint-dir",
+                str(checkpoint_dir),
         ],
         cwd=project_root,
         capture_output=True,
