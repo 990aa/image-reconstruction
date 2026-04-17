@@ -4,14 +4,14 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from evolutionary_art_gpu.constants import (
+from iterative_art_gpu.constants import (
     SHAPE_ELLIPSE,
     SHAPE_QUAD,
     SHAPE_THIN_STROKE,
     SHAPE_TRIANGLE,
 )
-from evolutionary_art_gpu.models import LivePolygonBatch, ShapeCandidate
-from evolutionary_art_gpu.renderer import GPUCoreRenderer
+from iterative_art_gpu.models import LivePolygonBatch, ShapeCandidate
+from iterative_art_gpu.renderer import GPUCoreRenderer
 
 
 class GPUSequentialHillClimber:

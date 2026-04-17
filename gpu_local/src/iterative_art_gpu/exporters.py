@@ -6,13 +6,13 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from evolutionary_art_gpu.constants import (
+from iterative_art_gpu.constants import (
     SHAPE_ELLIPSE,
     SHAPE_QUAD,
     SHAPE_THIN_STROKE,
     SHAPE_TRIANGLE,
 )
-from evolutionary_art_gpu.models import LivePolygonBatch
+from iterative_art_gpu.models import LivePolygonBatch
 
 
 def save_rgb_image(path: str | Path, image: np.ndarray) -> None:

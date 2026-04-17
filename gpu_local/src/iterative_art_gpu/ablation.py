@@ -3,6 +3,7 @@ from __future__ import annotations
 import gc
 import math
 import time
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,21 +13,21 @@ import torch
 import torch.optim as optim
 from skimage.metrics import structural_similarity
 
-from evolutionary_art_gpu.constants import (
+from iterative_art_gpu.constants import (
     SHAPE_ELLIPSE,
     SHAPE_QUAD,
     SHAPE_THIN_STROKE,
     SHAPE_TRIANGLE,
 )
-from evolutionary_art_gpu.models import SequentialStageConfig
-from evolutionary_art_gpu.optimizer import GPUSequentialHillClimber
-from evolutionary_art_gpu.pipeline import (
+from iterative_art_gpu.models import SequentialStageConfig
+from iterative_art_gpu.optimizer import GPUSequentialHillClimber
+from iterative_art_gpu.pipeline import (
     _resize_float_image,
     build_phase_plan,
     make_empty_live_batch,
     preprocess_target_array,
 )
-from evolutionary_art_gpu.renderer import GPUCoreRenderer
+from iterative_art_gpu.renderer import GPUCoreRenderer
 
 
 class ConfigurableGPUOptimizer(GPUSequentialHillClimber):
@@ -273,6 +274,15 @@ def run_ablation_suite(
             )
         else:
             if cfg.get("no_schedule", False):
+                shape_override = cfg.get("shapes")
+                stage_shapes: tuple[int, ...]
+                if isinstance(shape_override, tuple) and all(
+                    isinstance(value, int) for value in shape_override
+                ):
+                    stage_shapes = cast(tuple[int, ...], shape_override)
+                else:
+                    stage_shapes = (SHAPE_ELLIPSE, SHAPE_QUAD, SHAPE_TRIANGLE)
+
                 stages = (
                     SequentialStageConfig(
                         "flat",
@@ -285,7 +295,7 @@ def run_ablation_suite(
                         0.5,
                         0.9,
                         1.0,
-                        cfg.get("shapes", (SHAPE_ELLIPSE, SHAPE_QUAD, SHAPE_TRIANGLE)),
+                        stage_shapes,
                         False,
                         50,
                         5,

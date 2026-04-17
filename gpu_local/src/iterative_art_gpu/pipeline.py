@@ -9,21 +9,21 @@ from PIL import Image
 from scipy.ndimage import gaussian_filter, uniform_filter
 from skimage.filters import sobel_h, sobel_v
 
-from evolutionary_art_gpu.constants import (
+from iterative_art_gpu.constants import (
     SHAPE_ELLIPSE,
     SHAPE_QUAD,
     SHAPE_THIN_STROKE,
     SHAPE_TRIANGLE,
 )
-from evolutionary_art_gpu.models import (
+from iterative_art_gpu.models import (
     LivePolygonBatch,
     PhasePlan,
     PhaseResult,
     PreprocessedTarget,
     SequentialStageConfig,
 )
-from evolutionary_art_gpu.optimizer import GPUSequentialHillClimber
-from evolutionary_art_gpu.renderer import GPUCoreRenderer
+from iterative_art_gpu.optimizer import GPUSequentialHillClimber
+from iterative_art_gpu.renderer import GPUCoreRenderer
 
 
 ProgressCallback = Callable[[str, int, int, np.ndarray, np.ndarray, list[float]], None]

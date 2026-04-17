@@ -1,5 +1,5 @@
 [project]
-name = "evolutionary-art-cpu-optimized"
+name = "iterative-primitive-cpu-optimized"
 version = "0.1.0"
 description = "Optimized CPU implementation for sequential primitive image reconstruction"
 requires-python = ">=3.14"

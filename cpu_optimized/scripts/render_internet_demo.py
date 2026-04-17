@@ -137,7 +137,7 @@ def main() -> int:
             )
 
         final_metrics = _accuracy_metrics(preprocessed.target_rgb, result.final_canvas)
-        record = {
+        record: dict[str, object] = {
             "target": target_name,
             "original_size": list(original_size),
             "gif_path": str(gif_path.relative_to(project_root)).replace("\\", "/"),

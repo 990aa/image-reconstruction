@@ -3,14 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import sys
 import time
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
 
 import matplotlib
 
@@ -23,8 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage.metrics import structural_similarity
 
-from evolutionary_art_gpu.exporters import export_svg, save_rgb_image
-from evolutionary_art_gpu.pipeline import prepare_square_image, run_phase_local_gpu
+from iterative_art_gpu.exporters import export_svg, save_rgb_image
+from iterative_art_gpu.pipeline import prepare_square_image, run_phase_local_gpu
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -45,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("outputs") / "gpu_local",
+        default=Path("outputs") / "iterative_art_gpu_local",
         help="Directory for outputs",
     )
     parser.add_argument(
@@ -149,7 +143,7 @@ def main() -> int:
     if args.polygons <= 0:
         parser.error("--polygons must be positive")
 
-    output_dir = (ROOT / args.output_dir).resolve()
+    output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     image_rgb, original_size = prepare_square_image(
@@ -195,7 +189,7 @@ def main() -> int:
         if args.save_stage_checkpoints:
             stage_path = output_dir / f"stage_{stage_name}.png"
             save_rgb_image(stage_path, canvas)
-            payload["image_path"] = str(stage_path.relative_to(ROOT)).replace("\\", "/")
+            payload["image_path"] = stage_path.as_posix()
         stage_records.append(payload)
 
     result = run_phase_local_gpu(
@@ -234,10 +228,8 @@ def main() -> int:
         "accepted_polygons": int(result.batch.count),
         "iterations": int(result.iterations),
         "metrics": metrics,
-        "final_image": str(final_png.relative_to(ROOT)).replace("\\", "/"),
-        "svg": None
-        if svg_path is None
-        else str(svg_path.relative_to(ROOT)).replace("\\", "/"),
+        "final_image": final_png.as_posix(),
+        "svg": None if svg_path is None else svg_path.as_posix(),
         "stage_markers": [[name, int(idx)] for name, idx in result.stage_markers],
         "stage_checkpoints": stage_records,
     }

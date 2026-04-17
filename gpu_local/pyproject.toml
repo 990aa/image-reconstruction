@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "evolutionary-art-gpu-local"
+name = "iterative-primitive-gpu-local"
 version = "0.1.0"
-description = "Modular local-GPU implementation extracted from evolArt.ipynb"
+description = "Modular local-GPU implementation extracted from iterative_art.ipynb"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -21,3 +25,10 @@ dependencies = [
 dev = [
     "pytest>=8.3.0",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

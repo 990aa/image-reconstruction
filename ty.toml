@@ -1,0 +1,13 @@
+[environment]
+extra-paths = ["cpu_optimized", "gpu_local/src"]
+
+[rules]
+unresolved-import = "ignore"
+
+[src]
+exclude = [
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "**/outputs/**",
+    ".ruff_cache/**",
+]
